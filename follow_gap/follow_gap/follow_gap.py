@@ -13,7 +13,7 @@ class FollowGapDisparity(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
         # Parameters
-        self.safe_distance = 0.33        # Mask out obstacles closer than 3 m.
+        self.safe_distance = 0.33         # Mask out obstacles closer than 3 m.
         self.disparity_threshold = 0.33   # Disparity threshold (meters)
         self.bias_factor = 0.1           # Fraction of (center - midpoint) to shift the target
         
@@ -31,9 +31,7 @@ class FollowGapDisparity(Node):
         ranges[ranges < self.safe_distance] = 0
 
         # --- Throw out values behind the car ---
-        # Compute the angle for each measurement.
         angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-        # Only keep measurements between -pi/2 and +pi/2 (in front of the car).
         invalid = (angles < -np.pi/2) | (angles > np.pi/2)
         ranges[invalid] = 0
 
@@ -46,7 +44,7 @@ class FollowGapDisparity(Node):
         midpoint = (gap_start + gap_end) / 2.0
         center = len(ranges) / 2.0
         
-        # Bias the best point away from the wall:
+        # Bias the best point away from the wall.
         if midpoint < center:
             bias = self.bias_factor * (center - midpoint)
             best_point = midpoint + bias
@@ -95,13 +93,16 @@ class FollowGapDisparity(Node):
         return largest_gap
 
     def publish_command(self, steering_angle):
-        """Publish an AckermannDriveStamped command."""
+        """Publish an AckermannDriveStamped command with limited steering angle."""
+        # Limit the steering angle to ±0.34 radians.
+        steering_angle = max(min(steering_angle, 0.34), -0.34)
+        
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
         
-        # Map steering angle to speed: slower speed for larger absolute steering angles.
-        speed = max(1.0, self.base_speed - abs(steering_angle) * 2.0)
+        # Map steering angle to speed: slower during sharper turns.
+        speed = max(0.75, self.base_speed - abs(steering_angle) * 2.0)
         
         drive_msg.drive.steering_angle = steering_angle
         drive_msg.drive.speed = speed
