@@ -15,7 +15,7 @@ class FollowGapDisparity(Node):
         # Parameters
         self.safe_distance = 1.0         # Mask out obstacles closer than 3 m.
         self.disparity_threshold = 0.33   # Disparity threshold (meters)
-        self.bias_factor = 0.0           # Fraction of (center - midpoint) to shift the target
+        self.bias_factor = 0.1           # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
         self.base_speed = 0.75           # Base speed (m/s) when turning mildly
@@ -32,7 +32,7 @@ class FollowGapDisparity(Node):
 
         # --- Throw out values behind the car ---
         angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-        invalid = (angles < -np.pi/2) | (angles > np.pi/2)
+        invalid = (angles > np.pi/2) & ( angles < 3*np.pi/2)
         ranges[invalid] = 0
 
         # Apply the disparity extender.
