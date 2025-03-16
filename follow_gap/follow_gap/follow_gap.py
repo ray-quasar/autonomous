@@ -14,11 +14,11 @@ class FollowGapDisparity(Node):
         
         # Parameters
         self.safe_distance = 3.0         # Mask out obstacles closer than 3 m.
-        self.disparity_threshold = 0.3   # Disparity threshold (meters)
+        self.disparity_threshold = 0.33   # Disparity threshold (meters)
         self.bias_factor = 0.5           # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
-        self.base_speed = 6.0            # Base speed (m/s) when turning mildly
+        self.base_speed = 0.75            # Base speed (m/s) when turning mildly
 
     def lidar_callback(self, scan):
         # Convert raw scan data to NumPy array and clean it up.
