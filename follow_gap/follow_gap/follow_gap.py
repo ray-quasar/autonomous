@@ -14,7 +14,7 @@ class FollowGapDisparity(Node):
         
         # Parameters
         self.safe_distance = 1.0         # Mask out obstacles closer than 1 m.
-        self.disparity_threshold = 0.6   # Disparity threshold (meters)
+        self.disparity_threshold = 0.3   # Disparity threshold (meters)
         self.bias_factor = 0.1            # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
