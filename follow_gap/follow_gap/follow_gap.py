@@ -14,22 +14,29 @@ class FollowGapDisparity(Node):
         
         # Parameters
         self.safe_distance = 3.0         # Mask out obstacles closer than 3 m.
-        self.disparity_threshold = 0.33   # Disparity threshold (meters)
+        self.disparity_threshold = 0.3   # Disparity threshold (meters)
         self.bias_factor = 0.5           # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
-        self.base_speed = 0.75            # Base speed (m/s) when turning mildly
+        self.base_speed = 0.75           # Base speed (m/s) when turning mildly
 
     def lidar_callback(self, scan):
-        # Convert raw scan data to NumPy array and clean it up.
+        # Convert raw scan data to a NumPy array and clip to valid range.
         ranges = np.array(scan.ranges)
         ranges = np.clip(ranges, scan.range_min, scan.range_max)
         ranges[np.isnan(ranges)] = scan.range_max
         ranges[np.isinf(ranges)] = scan.range_max
         
-        # Mask out any readings that are too close.
+        # Ignore readings that are too close.
         ranges[ranges < self.safe_distance] = 0
-        
+
+        # --- Throw out values behind the car ---
+        # Compute the angle for each measurement.
+        angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
+        # Only keep measurements between -pi/2 and +pi/2 (in front of the car).
+        invalid = (angles < -np.pi/2) | (angles > np.pi/2)
+        ranges[invalid] = 0
+
         # Apply the disparity extender.
         ext_ranges = self.extend_disparities(ranges)
         
@@ -40,8 +47,6 @@ class FollowGapDisparity(Node):
         center = len(ranges) / 2.0
         
         # Bias the best point away from the wall:
-        # If midpoint is left of center, assume wall is on the left, so shift target right.
-        # If midpoint is right of center, shift target left.
         if midpoint < center:
             bias = self.bias_factor * (center - midpoint)
             best_point = midpoint + bias
@@ -58,9 +63,9 @@ class FollowGapDisparity(Node):
     def extend_disparities(self, scan):
         """
         Implements the disparity extender algorithm:
-          For each pair of adjacent valid measurements, if the absolute difference 
-          exceeds disparity_threshold, replace the smaller (closer) measurement with 
-          the larger (farther) measurement.
+        For each adjacent pair of valid measurements, if their absolute difference
+        exceeds disparity_threshold, replace the smaller (closer) measurement with 
+        the larger (farther) measurement.
         """
         ext = np.copy(scan)
         for i in range(len(scan) - 1):
@@ -73,7 +78,7 @@ class FollowGapDisparity(Node):
         return ext
 
     def find_largest_gap(self, ranges):
-        """Return (start, end) indices of the largest contiguous segment with nonzero readings."""
+        """Return the start and end indices of the largest contiguous segment (nonzero values)."""
         gaps = []
         gap_start = None
         for i, r in enumerate(ranges):
@@ -90,16 +95,12 @@ class FollowGapDisparity(Node):
         return largest_gap
 
     def publish_command(self, steering_angle):
-        """
-        Publish an AckermannDriveStamped command.
-        The steering_angle is set directly; you may adjust speed as a function of steering.
-        """
+        """Publish an AckermannDriveStamped command."""
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
         
-        # Map steering angle to speed: for larger absolute steering, reduce speed.
-        # Here we use a simple linear mapping; you might use a non-linear (exponential) mapping if needed.
+        # Map steering angle to speed: slower speed for larger absolute steering angles.
         speed = max(1.0, self.base_speed - abs(steering_angle) * 2.0)
         
         drive_msg.drive.steering_angle = steering_angle
@@ -107,7 +108,7 @@ class FollowGapDisparity(Node):
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"Best Point: (biased), Steering: {steering_angle:.2f} rad, Speed: {speed:.2f} m/s"
+            f"Steering: {steering_angle:.2f} rad, Speed: {speed:.2f} m/s"
         )
 
 def main(args=None):
@@ -119,4 +120,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
