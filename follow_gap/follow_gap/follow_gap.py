@@ -13,9 +13,9 @@ class FollowGapDisparity(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
         # Parameters
-        self.safe_distance = 0.33         # Mask out obstacles closer than 3 m.
+        self.safe_distance = 0.16         # Mask out obstacles closer than 3 m.
         self.disparity_threshold = 0.33   # Disparity threshold (meters)
-        self.bias_factor = 0.1           # Fraction of (center - midpoint) to shift the target
+        self.bias_factor = 0.0           # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
         self.base_speed = 0.75           # Base speed (m/s) when turning mildly
