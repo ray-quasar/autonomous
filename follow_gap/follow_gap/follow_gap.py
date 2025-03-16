@@ -13,9 +13,9 @@ class FollowGapDisparity(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
         # Parameters
-        self.safe_distance = 1.0         # Mask out obstacles closer than 3 m.
+        self.safe_distance = 1.0         # Mask out obstacles closer than 1 m.
         self.disparity_threshold = 0.6   # Disparity threshold (meters)
-        self.bias_factor = 0.0           # Fraction of (center - midpoint) to shift the target
+        self.bias_factor = 0.1            # Fraction of (center - midpoint) to shift the target
         
         # Drive parameters
         self.base_speed = 0.75           # Base speed (m/s) when turning mildly
@@ -30,19 +30,23 @@ class FollowGapDisparity(Node):
         # Ignore readings that are too close.
         ranges[ranges < self.safe_distance] = 0
 
-        # --- Throw out values behind the car ---
+        # --- Remove values behind the car entirely ---
+        # Compute the full array of angles.
         angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-        valid = (angles > np.pi/2) & ( angles < 3*np.pi/2)
-        ranges = valid * ranges
-
-        # Apply the disparity extender.
-        ext_ranges = self.extend_disparities(ranges)
+        # Create a mask for angles between -pi/2 and pi/2 (the front of the car)
+        valid_mask = (angles >= -np.pi/2) & (angles <= np.pi/2)
+        valid_ranges = ranges[valid_mask]
+        valid_angles = angles[valid_mask]
         
-        # Find the largest gap in the extended scan.
+        # Apply the disparity extender on the filtered (front-facing) ranges.
+        ext_ranges = self.extend_disparities(valid_ranges)
+        
+        # Find the largest gap in the extended valid ranges.
         gap_start, gap_end = self.find_largest_gap(ext_ranges)
-        # Compute the (raw) midpoint of the gap.
+        # Compute the raw midpoint index (as a float) of the gap.
         midpoint = (gap_start + gap_end) / 2.0
-        center = len(ranges) / 2.0
+        # Define the center of the valid array as the index with angle closest to 0.
+        center = np.argmin(np.abs(valid_angles))
         
         # Bias the best point away from the wall.
         if midpoint < center:
@@ -52,9 +56,12 @@ class FollowGapDisparity(Node):
             bias = self.bias_factor * (midpoint - center)
             best_point = midpoint - bias
         
-        # Convert the chosen best_point index into a steering angle.
-        angle_increment = scan.angle_increment
-        steering_angle = (best_point - center) * angle_increment
+        # Convert the chosen best point index into a steering angle.
+        # Because valid_angles are uniformly spaced, we can simply take the angle at the rounded index.
+        best_index = int(round(best_point))
+        # Ensure the index is within bounds.
+        best_index = max(0, min(best_index, len(valid_angles) - 1))
+        steering_angle = valid_angles[best_index]
         
         self.publish_command(steering_angle)
 
