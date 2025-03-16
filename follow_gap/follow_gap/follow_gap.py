@@ -32,7 +32,7 @@ class FollowGapDisparity(Node):
 
         # --- Throw out values behind the car ---
         angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-        invalid = (angles > np.pi/2) & ( angles < 3*np.pi/2)
+        invalid = (angles < np.pi/2) & ( angles > 3*np.pi/2)
         ranges[invalid] = 0
 
         # Apply the disparity extender.
