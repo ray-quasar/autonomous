@@ -34,7 +34,7 @@ class FollowGapDisparity(Node):
         # Compute the full array of angles.
         angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
         # Create a mask for angles between -pi/2 and pi/2 (the front of the car)
-        valid_mask = (angles <= 3*np.pi/2) & (angles >= np.pi/2)
+        valid_mask = (angles >= -np.pi/2) & (angles <= np.pi/2)
         valid_ranges = ranges[valid_mask]
         valid_angles = angles[valid_mask]
         
