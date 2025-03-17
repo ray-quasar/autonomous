@@ -41,7 +41,7 @@ valid_ranges[3*len(valid_ranges)//4:] = 0
 nonzero_indices = np.nonzero(valid_ranges)
 first_nonzero = nonzero_indices[0][0]
 last_nonzero = nonzero_indices[0][-1]
-print(first_nonzero, last_nonzero)
+# print(first_nonzero, last_nonzero)
 
 # This method will also be helpful for finding the gaps later
 
@@ -55,8 +55,22 @@ disparity_check = 0.5
 # I think this should actually be something about the size and turning radius of the car but I have no idea how to calculate that
 
 def find_disparities(ranges, check_value):
+    """
+    Identifies disparities in the LiDAR scan data.
+
+    A disparity is defined as a significant jump in range values between consecutive points.
+    This function iterates through the range values and records the indices where the jump
+    exceeds the specified check value.
+
+    Parameters:
+        ranges (np.array): Array of range values from the LiDAR scan.
+        check_value (float): The minimum difference between consecutive range values to be considered a disparity.
+
+    Returns:
+        list: A list of indices where disparities are detected.
+    """
     disparities = []
-    for i in range(first_nonzero, last_nonzero):
+    for i in range(0, len(ranges)-1):
         # Need to check if the current or the next range is zero
         # If it is, we need to skip it
         if ranges[i] == 0 or ranges[i+1] == 0:
@@ -66,11 +80,15 @@ def find_disparities(ranges, check_value):
             disparities.append(i)
     return disparities
 
+test_disparities = find_disparities(valid_ranges, disparity_check)
+print(test_disparities)
+
+## ABOVE IS VALIDATED
 
 # Now that we know where the disparities are, we can EXTEND them
 # For each disparity, we want to extend it towards the increase in range values
 # The extension distance needs to be half the width of the car
-# extension_distance = 0.5
+extension_distance = 0.15
 # But the amount of lidar scan points we rewrite depends on the distance from the car
 # The further away the disparity, the fewer points we need to rewrite
 # To calculate the number of points to rewrite, we can use the angle increment of the scan
@@ -79,15 +97,26 @@ def find_disparities(ranges, check_value):
 # The angle at the spear tip of the triangle gets divided by the angle increment to get the number of points to rewrite
 # I think it's actually half the angle at the spear tip
 
-# BUILD A FUNCTION TO EXTEND DISPARITIES
+def extend_disparities(ranges, disparities, extension_distance):
 
-# def extend_disparities(ranges, disparities, extension_distance):
+    for i in disparities:
+        # Get the range value at the disparity
+        disparity_range = ranges[i]
+        # Get the range value at the next point
+        next_range = ranges[i+1]
+        # Calculate the angle between the two points
+        angle = math.atan2(next_range - disparity_range, 1)
+        # Calculate the number of points to rewrite
+        num_points = int(angle / laser_scan["angle_increment"])
+        # Rewrite the points
+        for j in range(1, num_points):
+            ranges[i+j] = disparity_range + j * extension_distance
 
-#     return # return the extended ranges
+    return # return the extended ranges
 
 # Now that we have extended the disparities, we have a set of virtual ranges in configuration space
 # There are two options/strategies for following the gap
-# 1. Follow the largest gap
+# 1. Follow the widest gap
 # 2. Follow the deepest gap
 # The largest gap is the widest gap in the ranges
 # The deepest gap is the gap with the highest range values
@@ -96,9 +125,6 @@ def find_disparities(ranges, check_value):
 
 # BUILD A FUNCTION TO FIND THE LARGEST GAP
 
-# def find_largest_gap(ranges):
-
-#     return # return the start and end indices of the largest
 def find_largest_gap(ranges):
     """
     Finds the largest contiguous segment ("gap") where the range values are high.

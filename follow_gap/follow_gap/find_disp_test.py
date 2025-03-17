@@ -25,5 +25,8 @@ def test_find_disparities_none():
     disparities = find_disparities(ranges, check_value)
     assert disparities == []
 
-if __name__ == "__main__":
-    pytest.main()
+test_find_disparities_left()
+test_find_disparities_right()
+test_find_disparities_multiple()    
+test_find_disparities_none()
+print("All tests pass")
