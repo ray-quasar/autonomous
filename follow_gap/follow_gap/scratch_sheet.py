@@ -83,9 +83,14 @@ def find_deepest_gap(ranges):
     return # return the start and end indices of the deepest
 
 # Now that we have the desired gap, we can calculate the steering angle and speed
+
 # The steering angle is the average angle of the gap
 # We can get this by choosing the angle of the index in the middle of the gap
+# The steering angle should be positive if the gap is to the left, and negative if to the right
+# The orientation of the LiDAR readings may require us to invert the steering angle
+# The steering angle should be limited to +/- 0.34 radians (20 degrees)
+
 # The speed is the base speed if the gap is wide, and slower if it's narrow
 # The speed should also be moderated by the depth of the gap and the steering angle
-# The steering angle should be positive if the gap is to the left, and negative if to the right
+
 # If there is no gap, stop the car
