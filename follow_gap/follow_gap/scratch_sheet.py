@@ -95,7 +95,40 @@ def find_disparities(ranges, check_value):
 # def find_largest_gap(ranges):
 
 #     return # return the start and end indices of the largest
-
+def find_largest_gap(ranges):
+    """
+    Finds the largest contiguous segment ("gap") where the range values are high.
+    In this toy example the gap is defined by indices with values at or above 95%
+    of the maximum range in the scan.
+    
+    Parameters:
+        ranges (np.array): Array of (extended) range values.
+        
+    Returns:
+        tuple: (start_index, end_index) of the largest gap.
+    """
+    threshold = 0.95 * np.max(ranges)
+    best_gap_start, best_gap_end, best_gap_size = 0, 0, 0
+    in_gap = False
+    start = 0
+    for i, r in enumerate(ranges):
+        if r >= threshold:
+            if not in_gap:
+                in_gap = True
+                start = i
+        else:
+            if in_gap:
+                in_gap = False
+                gap_size = i - start
+                if gap_size > best_gap_size:
+                    best_gap_size = gap_size
+                    best_gap_start, best_gap_end = start, i - 1
+    # Check if a gap extends to the end
+    if in_gap:
+        gap_size = len(ranges) - start
+        if gap_size > best_gap_size:
+            best_gap_start, best_gap_end = start, len(ranges) - 1
+    return best_gap_start, best_gap_end
 # BUILD A FUNCTION TO FIND THE DEEPEST
 
 # def find_deepest_gap(ranges):
