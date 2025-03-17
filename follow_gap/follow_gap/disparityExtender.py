@@ -4,36 +4,28 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
 
-class FollowGapDisparity(Node):
+class disparityExtender(Node):
     def __init__(self):
-        super().__init__('follow_gap_disparity')
+        super().__init__('disparityExtender')
         # Subscribe to LiDAR scans (assumed on '/scan')
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
         # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
-        # Parameters
-        self.safe_distance = 1.0         # Mask out obstacles closer than 1 m.
-        self.disparity_threshold = 0.3   # Disparity threshold (meters)
-        self.bias_factor = 0.1            # Fraction of (center - midpoint) to shift the target
-        
+        # Gap detection parameters
+        self.disparity_threshold = 0.5    # Threshold for extending disparities (in meters)
+
         # Drive parameters
         self.base_speed = 0.75           # Base speed (m/s) when turning mildly
 
     def lidar_callback(self, scan):
-        # Convert raw scan data to a NumPy array and clip to valid range.
+        # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
         angles = np.linspace(scan.angle_min, scan.angle_max, len(ranges))
 
         # Filter out invalid values (NaNs, infs, etc.).
-        # ranges = np.clip(ranges, scan.range_min, scan.range_max)
-
-        ranges[np.isnan(ranges)] = scan.range_max
-        ranges[np.isinf(ranges)] = scan.range_max
+        # 
         
-        # I'm not sure this is necessary, but it's in the original code.
-        # Ignore readings that are too close.
-        #ranges[ranges < self.safe_distance] = 0.0
 
         # --- Remove values behind the car entirely ---
         # ROS LiDAR scans are in the order of -pi to pi, so we can filter out the rear 180 degrees.
