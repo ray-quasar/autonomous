@@ -1,0 +1,10 @@
+# Ignore virtual environment
+.venv/
+
+# Ignore miscellaneous files
+*.log
+*.tmp
+*.swp
+*.bak
+.DS_Store
+Thumbs.db
