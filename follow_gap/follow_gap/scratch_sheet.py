@@ -54,8 +54,6 @@ print(first_nonzero, last_nonzero)
 disparity_check = 0.5
 # I think this should actually be something about the size and turning radius of the car but I have no idea how to calculate that
 
-# BUILD A FUNCTTION TO DETECT DISPARITIES
-
 def find_disparities(ranges, check_value):
     disparities = []
     for i in range(first_nonzero, last_nonzero):
@@ -66,9 +64,8 @@ def find_disparities(ranges, check_value):
         # Check if the difference between the current range and the next range is greater than the check value
         if abs(ranges[i] - ranges[i+1]) >= check_value:
             disparities.append(i)
+    return disparities
 
-
-     return # return the indices of the disparities
 
 # Now that we know where the disparities are, we can EXTEND them
 # For each disparity, we want to extend it towards the increase in range values
