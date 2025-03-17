@@ -59,6 +59,13 @@ disparity_check = 0.5
 def find_disparities(ranges, check_value):
     disparities = []
     for i in range(first_nonzero, last_nonzero):
+        # Need to check if the current or the next range is zero
+        # If it is, we need to skip it
+        if ranges[i] == 0 or ranges[i+1] == 0:
+            continue
+        # Check if the difference between the current range and the next range is greater than the check value
+        if abs(ranges[i] - ranges[i+1]) >= check_value:
+            disparities.append(i)
 
 
      return # return the indices of the disparities

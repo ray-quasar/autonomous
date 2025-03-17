@@ -17,10 +17,6 @@ laser_scan = {
     "range_min": 0.15000000596046448,
     "range_max": 25.0,
     "ranges": np.array([
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
       1.3040000200271606,
       1.312000036239624,
       1.312000036239624,
