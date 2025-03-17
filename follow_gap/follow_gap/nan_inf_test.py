@@ -1,7 +1,7 @@
 import numpy as np
 
 # Create arrays with different types of values
-array1 = np.array([1, 2, np.nan, 4, 5])
+array1 = np.array([1, 0, np.nan, 4, 5])
 array2 = np.array([1, 2, np.inf, 4, -np.inf])
 array3 = np.array([1, 2, 3, 4, 5])
 
@@ -12,6 +12,11 @@ isnan_array3 = np.isnan(array3)
 
 # Check for Inf values
 isinf_array1 = np.isinf(array1)
+isinf_array2 = np.isinf(array2)
+isinf_array3 = np.isinf(array3)
+
+# Check for zero values
+isinf_array1 = np.nonzero(array1)
 isinf_array2 = np.isinf(array2)
 isinf_array3 = np.isinf(array3)
 

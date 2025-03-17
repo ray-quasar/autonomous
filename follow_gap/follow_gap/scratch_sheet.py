@@ -30,22 +30,38 @@ valid_ranges = np.nan_to_num(valid_ranges)
 # We assume that theta = 0 is directly in front of the car
 # We want to ignore the rear 90 degrees of the scan
 # This bit of code assumes that the scan is 360 degrees and keeps the middle half
-# valid_ranges = valid_ranges[len(valid_ranges)//4:3*len(valid_ranges)//4]
-# 90 degrees might not be enough, but this can be parameterized 
+# The rest of the values are set to 0
+valid_ranges[:len(valid_ranges)//4] = 0
+# print(len(valid_ranges)//4)
+valid_ranges[3*len(valid_ranges)//4:] = 0
+# print(3*len(valid_ranges)//4)
+
+# 90 degrees might not be enough, but this can be parameterized later
+# To test this I'm going to print the indices of the first and last non-zero values
+nonzero_indices = np.nonzero(valid_ranges)
+first_nonzero = nonzero_indices[0][0]
+last_nonzero = nonzero_indices[0][-1]
+print(first_nonzero, last_nonzero)
+
+# This method will also be helpful for finding the gaps later
+
+## ABOVE IS VALIDATED
 
 # Next we need a mechanism to identify disparities in the scan
 # A disparity is a large jump in range values
 # We expect the car to running in a track about 2 meters wide
 # So we can set a guesstimate for disparities being at least 0.5 meters jump in range values
-# disparity_check = 0.5
+disparity_check = 0.5
 # I think this should actually be something about the size and turning radius of the car but I have no idea how to calculate that
 
 # BUILD A FUNCTTION TO DETECT DISPARITIES
 
-# def find_disparities(ranges, check_value):
+def find_disparities(ranges, check_value):
+    disparities = []
+    for i in range(first_nonzero, last_nonzero):
 
 
-#     return # return the indices of the disparities
+     return # return the indices of the disparities
 
 # Now that we know where the disparities are, we can EXTEND them
 # For each disparity, we want to extend it towards the increase in range values
