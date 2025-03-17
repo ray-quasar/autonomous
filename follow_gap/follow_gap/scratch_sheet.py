@@ -98,7 +98,6 @@ extension_distance = 0.15
 # I think it's actually half the angle at the spear tip
 
 def extend_disparities(ranges, disparities, extension_distance):
-
     for i in disparities:
         # Get the range value at the disparity
         disparity_range = ranges[i]
