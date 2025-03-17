@@ -9,15 +9,9 @@ from test_scan import laser_scan
 # First, we do preprocessing on the raw scan data
 # We copy in the raw scan data into a NumPy array
 valid_ranges = np.copy(laser_scan["ranges"])
-# Let's check that the copy worked by printing the first 5 values
-# print(max(valid_ranges))
-# print(min(valid_ranges))
-print(valid_ranges[:5])
 
 # We know we cannot trust values that are beyond the specified range_min and range_max
 valid_ranges = np.clip(valid_ranges, laser_scan["range_min"], laser_scan["range_max"])
-# print(max(valid_ranges))
-# print(min(valid_ranges))
 
 # F1T recommends clipping to even lower than range_max to prevent swinging in long straightaways
 # But this might not be necessary for a track with no right angles
@@ -29,6 +23,8 @@ valid_ranges = np.clip(valid_ranges, laser_scan["range_min"], laser_scan["range_
 valid_ranges = np.nan_to_num(valid_ranges)
 # I think NaNs should go to zero so they don't ever become the deepest point
 # And as long as the NaNs are disparate, just one or two missed points, they should be extended over in the next step
+
+## ABOVE IS VALIDATED
 
 # We also have to throw away the rear values of the scan
 # We assume that theta = 0 is directly in front of the car
