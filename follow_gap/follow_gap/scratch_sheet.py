@@ -19,8 +19,8 @@ valid_ranges = np.clip(valid_ranges, laser_scan["range_min"], laser_scan["range_
 # An outlier filter might be better for this
 
 # infs will get clipped to range_max, but NaNs will stay as NaNs
-# We can replace NaNs with 0s
-valid_ranges = np.nan_to_num(valid_ranges)
+# We can replace NaNs with 0.0
+valid_ranges = np.nan_to_num(valid_ranges, nan=0.0)
 # I think NaNs should go to zero so they don't ever become the deepest point
 # And as long as the NaNs are disparate, just one or two missed points, they should be extended over in the next step
 

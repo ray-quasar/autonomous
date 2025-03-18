@@ -41,7 +41,7 @@ class disparityExtender(Node):
 
         # Preprocess the scan data
         ranges = np.clip(ranges, scan.range_min, scan.range_max)
-        ranges = np.nan_to_num(ranges)
+        ranges = np.nan_to_num(ranges, nan=0.0)
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
 
