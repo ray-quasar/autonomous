@@ -147,7 +147,8 @@ class disparityExtender(Node):
             ranges (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
-        ranges = np.asarray(ranges, dtype=float)
+        #ranges = np.asarray(ranges, dtype=float)
+        ranges = ranges.tolist()
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
@@ -161,8 +162,8 @@ class disparityExtender(Node):
         modified_scan.ranges = ranges
         modified_scan.intensities = raw_scan_data.intensities
 
-        self.range_data_publisher.publish(modified_scan)
-        self.range_data_publisher = self.create_publisher(
+        self.ext_scan_publisher.publish(modified_scan)
+        self.ext_scan_publisher = self.create_publisher(
             LaserScan,
             '/ext_scan',  # Topic name for modified range data
             10  # QoS
