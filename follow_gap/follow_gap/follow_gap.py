@@ -32,8 +32,10 @@ class disparityExtender(Node):
         # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
 
-        # Rotate the scan data so that the car is at the center
+        # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
+        # Rotate the scan data about x-axis
+        ranges = np.flip(ranges)
 
         # Preprocess the scan data
         ranges = np.clip(ranges, scan.range_min, scan.range_max)
