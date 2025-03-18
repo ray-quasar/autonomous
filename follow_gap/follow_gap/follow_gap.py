@@ -57,7 +57,7 @@ class disparityExtender(Node):
 
     # Helper functions
 
-    def find_disparities(ranges, check_value):
+    def find_disparities(self, ranges, check_value):
         """
         Identifies disparities in the LiDAR scan data.
 
@@ -86,11 +86,11 @@ class disparityExtender(Node):
                 disparities.append(i+1)
         return disparities
     
-    def extend_disparities(ranges, disparities, extension_distance, angle_increment):
+    def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
-            triangle_height = ranges[i]
-            triangle_base = extension_distance
-            angle_to_extend = np.atan(triangle_base / triangle_height)
+            # triangle_height = ranges[i]
+            # triangle_base = self.extension_distance
+            angle_to_extend = np.atan(self.extension_distance / ranges[i])``
             points_to_rewrite = int(angle_to_extend / angle_increment)
             # print(points_to_rewrite)
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
@@ -109,7 +109,7 @@ class disparityExtender(Node):
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
         return ranges
     
-    def find_deepest_index(ranges):
+    def find_deepest_index(self, ranges):
         deep_index = np.argmax(ranges)    
         return deep_index
 
