@@ -11,6 +11,8 @@ class disparityExtender(Node):
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
         # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        # Publisher for modified range data
+        self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
         
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.20
@@ -54,11 +56,12 @@ class disparityExtender(Node):
 
         # Determine the steering angle and speed
         steering_angle = scan.angle_min + deep_index * scan.angle_increment
-        steering_angle = max(min(steering_angle, 0.34), -0.34)
+        # steering_angle = max(min(steering_angle, 0.34), -0.34)
         
         speed = self.base_speed
 
-        self.publish_command(steering_angle, speed)
+        self.publish_drive_command(steering_angle, speed)
+        self.publish_laser_scan(ranges, scan)
 
     # Helper functions
 
@@ -117,20 +120,50 @@ class disparityExtender(Node):
         deep_index = np.argmax(ranges)    
         return deep_index
 
-    def publish_command(self, steering_angle, speed):
+    def publish_drive_command(self, steering_angle, speed):
         """
-        Publish an AckermannDriveStamped command message.
-        """        
+        Publish an AckermannDriveStamped command message to the '/drive' topic.
+
+        """   
+        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34)
+
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
         
-        drive_msg.drive.steering_angle = steering_angle
+        drive_msg.drive.steering_angle = bounded_steering_angle
         drive_msg.drive.speed = speed
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"Steering: {steering_angle:.2f} rad, Speed: {speed:.2f} m/s"
+            f"Desired Steering: {steering_angle:.2f} rad, \n Published Steering: {steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
+        )
+
+    def publish_laser_scan(self, ranges, raw_scan_data):
+        """
+        Publish the modified range data to the '/ext_scan' topic.
+
+        Parameters:
+            ranges (np.array): Modified range data.
+            scan_data (LaserScan): Original LiDAR scan data.
+        """
+        modified_scan = LaserScan()
+        modified_scan.header.stamp = raw_scan_data.header.stamp
+        modified_scan.header.frame_id = 'base_link' # The modified scan data is rotated to the base_link frame
+        modified_scan.angle_min = raw_scan_data.angle_min
+        modified_scan.angle_max = raw_scan_data.angle_max
+        modified_scan.angle_increment = raw_scan_data.angle_increment
+        modified_scan.scan_time = raw_scan_data.scan_time
+        modified_scan.range_min = raw_scan_data.range_min
+        modified_scan.range_max = raw_scan_data.range_max
+        modified_scan.ranges = ranges
+        modified_scan.intensities = raw_scan_data.intensities
+
+        self.range_data_publisher.publish(modified_scan)
+        self.range_data_publisher = self.create_publisher(
+            LaserScan,
+            '/ext_scan',  # Topic name for modified range data
+            10  # QoS
         )
 
 def main(args=None):
