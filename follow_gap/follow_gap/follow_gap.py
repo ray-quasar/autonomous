@@ -43,8 +43,7 @@ class disparityExtender(Node):
         # ranges = np.clip(ranges, scan.range_min, scan.range_max)
         ranges = np.clip(ranges, scan.range_min, 4.0)
         ranges = np.nan_to_num(ranges, nan=0.0)
-        ranges[:len(ranges)//4] = 0.0
-        ranges[3*len(ranges)//4:] = 0.0
+        self.occlude_ranges(ranges, 180.0, 180.0)
 
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities(ranges, self.disparity_check)
@@ -65,6 +64,28 @@ class disparityExtender(Node):
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
+
+    def occlude_ranges(ranges, fov_size, fov_center):
+        """
+        Occlude the ranges to a specified FOV.
+
+        Parameters:
+            ranges (np.array): The range data.
+            fov_size (float): The size of the FOV in degrees.
+            fov_center (float): The center of the FOV in degrees.
+        """
+        num_ranges = len(ranges)
+        
+        # Calculate the start and end indices for the FOV using proportions
+        fov_size_proportion = fov_size / 360.0
+        fov_center_proportion = fov_center / 360.0
+        
+        start_index = int((fov_center_proportion - fov_size_proportion / 2) * num_ranges)
+        end_index = int((fov_center_proportion + fov_size_proportion / 2) * num_ranges)
+        
+        # Occlude the ranges outside the FOV
+        ranges[:start_index] = 0.0
+        ranges[end_index:] = 0.0
 
     def find_disparities(self, ranges, check_value):
         """
@@ -99,7 +120,13 @@ class disparityExtender(Node):
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
             angle_to_extend = np.arctan(self.extension_distance / ranges[i])
-            points_to_rewrite = int(angle_to_extend / angle_increment * ranges[i]) # Added the half for troubleshooting on S
+            points_to_rewrite = int(angle_to_extend / angle_increment * ranges[i]) 
+                # Multiplying by ranges[i] to prevent disparity extension at close ranges
+                # Just the ranges value itself is on the right order to scale the extension it seems
+
+                # I may make it so that the extension is also scaled by how close to the edge of the fov the disparity is
+                # This way, the disparity extension is more at the edges of the fov
+
             # print(points_to_rewrite)
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
             if i - points_to_rewrite < 0:
