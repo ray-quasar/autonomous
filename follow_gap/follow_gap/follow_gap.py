@@ -4,138 +4,122 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
 
-# This is a test edit
-# This is a test edit
-
-
-class FollowGapDisparity(Node):
+class disparityExtender(Node):
     def __init__(self):
-        super().__init__('follow_gap_disparity')
+        super().__init__('disparityExtender')
         # Subscribe to LiDAR scans (assumed on '/scan')
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
         # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
-        # Parameters
-        self.safe_distance = 1.0         # Mask out obstacles closer than 1 m.
-        self.disparity_threshold = 0.3   # Disparity threshold (meters)
-        self.bias_factor = 0.1            # Fraction of (center - midpoint) to shift the target
-        
-        # Drive parameters
-        self.base_speed = 0.75           # Base speed (m/s) when turning mildly
+        # Threshold for extending disparities (in meters)
+        self.extension_distance = 0.20
 
+        # Threshold for detecting disparities (in meters)
+        self.disparity_check = 0.5    
+
+        # Base speed (m/s) on straightaways
+        self.base_speed = 0.75      
+
+        # Maximum steering angle (radians)
+        self.max_steering_angle = 0.34     
+    
+    # Main LiDAR scan processing function
     def lidar_callback(self, scan):
-        # Convert raw scan data to a NumPy array and clip to valid range.
+        """
+        Callback function for processing incoming LiDAR scan data.
+        """
+        # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
-        angles = np.linspace(scan.angle_min, scan.angle_max, len(ranges))
 
-        # Filter out invalid values (NaNs, infs, etc.).
-        # ranges = np.clip(ranges, scan.range_min, scan.range_max)
+        # Preprocess the scan data
+        ranges = np.clip(ranges, scan.range_min, scan.range_max)
+        ranges = np.nan_to_num(ranges)
+        ranges[:len(ranges)//4] = 0
+        ranges[3*len(ranges)//4:] = 0
 
-        ranges[np.isnan(ranges)] = scan.range_max
-        ranges[np.isinf(ranges)] = scan.range_max
-        
-        # I'm not sure this is necessary, but it's in the original code.
-        # Ignore readings that are too close.
-        #ranges[ranges < self.safe_distance] = 0.0
+        # Find disparities in the LiDAR scan data
+        disparities = self.find_disparities(ranges, self.disparity_check)
 
-        # --- Remove values behind the car entirely ---
-        # ROS LiDAR scans are in the order of -pi to pi, so we can filter out the rear 180 degrees.
-        # The scan is symmetric, so we can just keep the middle two quartiles
-        # (i.e., the middle half of the scan).
-        valid_ranges = np.copy(ranges)
-        valid_ranges = valid_ranges[len(valid_ranges)//4:3*len(valid_ranges)//4]
+        # Extend disparities in the LiDAR scan data
+        ranges = self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
 
-        valid_angles = np.copy(angles)
-        valid_angles = valid_angles[len(valid_angles)//4:3*len(valid_angles)//4]
+        # Find the index of the deepest point in the LiDAR scan data
+        deep_index = self.find_deepest_index(ranges)
 
-        
-        # The Disparity Extender algorithm is broken, so we'll just use the valid_ranges for now
-        # Apply the disparity extender on the filtered (front-facing) ranges.
-        #ext_ranges = self.extend_disparities(valid_ranges)
-        ext_ranges = valid_ranges
-        
-        # Find the largest gap in the extended valid ranges.
-        gap_start, gap_end = self.find_largest_gap(ext_ranges)
-
-        # Compute the raw midpoint index (as a float) of the gap.
-        midpoint = (gap_start + gap_end) / 2.0
-
-        # Define the center of the valid array as the index with angle closest to 0.
-        center = np.argmin(np.abs(valid_angles))
-        
-        # Bias the best point away from the wall.
-        if midpoint < center:
-            bias = self.bias_factor * (center - midpoint)
-            best_point = midpoint + bias
-        else:
-            bias = self.bias_factor * (midpoint - center)
-            best_point = midpoint - bias
-        
-        # Convert the chosen best point index into a steering angle.
-        # Because valid_angles are uniformly spaced, we can simply take the angle at the rounded index.
-        best_index = int(round(best_point))
-        # Ensure the index is within bounds.
-        best_index = max(0, min(best_index, len(valid_angles) - 1))
-        steering_angle = valid_angles[best_index]
-        
-        self.publish_command(steering_angle)
-
-    def extend_disparities(self, scan):
-        """
-        Implements the disparity extender algorithm:
-        For each adjacent pair of valid measurements, if their absolute difference
-        exceeds disparity_threshold, replace the smaller (closer) measurement with 
-        the larger (farther) measurement.
-        """
-        ext = np.copy(scan)
-        for i in range(len(scan) - 1):
-            if scan[i] > 0 and scan[i+1] > 0:
-                if abs(scan[i+1] - scan[i]) > self.disparity_threshold:
-                    if scan[i] < scan[i+1]:
-                        ext[i] = scan[i+1]
-                    else:
-                        ext[i+1] = scan[i]
-        return ext
-
-    def find_largest_gap(self, ranges):
-        """Return the start and end indices of the largest contiguous segment (nonzero values)."""
-        gaps = []  # List to store the start and end indices of each gap
-        gap_start = None  # Variable to mark the start of a gap
-
-        # Iterate through the ranges to identify gaps
-        for i, r in enumerate(ranges):
-            if r > 0 and gap_start is None:
-                # Start of a new gap
-                gap_start = i
-            elif r == 0 and gap_start is not None:
-                # End of the current gap
-                gaps.append((gap_start, i - 1))
-                gap_start = None
-
-        # If the last gap reaches the end of the ranges, close it
-        if gap_start is not None:
-            gaps.append((gap_start, len(ranges) - 1))
-
-        # If no gaps are found, return the entire range
-        if not gaps:
-            return (0, len(ranges) - 1)
-
-        # Find the largest gap by comparing the lengths of all gaps
-        largest_gap = max(gaps, key=lambda g: g[1] - g[0])
-        return largest_gap
-
-    def publish_command(self, steering_angle):
-        """Publish an AckermannDriveStamped command with limited steering angle."""
-        # Limit the steering angle to ±0.34 radians.
+        # Determine the steering angle and speed
+        steering_angle = scan.angle_min + deep_index * scan.angle_increment
         steering_angle = max(min(steering_angle, 0.34), -0.34)
         
+        speed = self.base_speed
+
+        self.publish_command(steering_angle, speed)
+
+    # Helper functions
+
+    def find_disparities(ranges, check_value):
+        """
+        Identifies disparities in the LiDAR scan data.
+
+        A disparity is defined as a significant jump in range values between consecutive points.
+        This function iterates through the range values and records the indices where the jump
+        exceeds the specified check value.
+
+        Parameters:
+            ranges (np.array): Array of range values from the LiDAR scan.
+            check_value (float): The minimum difference between consecutive range values to be considered a disparity.
+
+        Returns:
+            list: A list of indices where disparities are detected.
+        """
+        disparities = []
+        for i in range(0, len(ranges)-1):
+            # Need to check if the current or the next range is zero
+            # If it is, we need to skip it
+            if ranges[i] == 0 or ranges[i+1] == 0:
+                continue
+            # If the next range is positively larger than the current range, we have a disparity at i
+            if -(ranges[i] - ranges[i+1]) >= check_value:
+                disparities.append(i)
+            # Check if the difference between the current range and the next range is greater than the check value
+            if ranges[i] - ranges[i+1] >= check_value:
+                disparities.append(i+1)
+        return disparities
+    
+    def extend_disparities(ranges, disparities, extension_distance, angle_increment):
+        for i in disparities:
+            triangle_height = ranges[i]
+            triangle_base = extension_distance
+            angle_to_extend = np.atan(triangle_base / triangle_height)
+            points_to_rewrite = int(angle_to_extend / angle_increment)
+            # print(points_to_rewrite)
+            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+            if i - points_to_rewrite < 0:
+                for j in range(i + points_to_rewrite):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            elif i + points_to_rewrite > len(ranges):
+                for j in range(i - points_to_rewrite, len(ranges)):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            else:
+                for j in range(i - points_to_rewrite, i + points_to_rewrite):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+        return ranges
+    
+    def find_deepest_index(ranges):
+        deep_index = np.argmax(ranges)    
+        return deep_index
+
+    def publish_command(self, steering_angle, speed):
+        """
+        Publish an AckermannDriveStamped command message.
+        """        
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
-        
-        # Map steering angle to speed: slower during sharper turns.
-        speed = max(0.75, self.base_speed - abs(steering_angle) * 2.0)
         
         drive_msg.drive.steering_angle = steering_angle
         drive_msg.drive.speed = speed
@@ -147,7 +131,7 @@ class FollowGapDisparity(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = FollowGapDisparity()
+    node = disparityExtender()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
