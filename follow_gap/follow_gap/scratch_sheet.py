@@ -75,16 +75,20 @@ def find_disparities(ranges, check_value):
         # If it is, we need to skip it
         if ranges[i] == 0 or ranges[i+1] == 0:
             continue
-        # Check if the difference between the current range and the next range is greater than the check value
-        if abs(ranges[i] - ranges[i+1]) >= check_value:
+        # If the next range is positively larger than the current range, we have a disparity at i
+        if -(ranges[i] - ranges[i+1]) >= check_value:
             disparities.append(i)
+        # Check if the difference between the current range and the next range is greater than the check value
+        if ranges[i] - ranges[i+1] >= check_value:
+            disparities.append(i+1)
     return disparities
 
 test_disparities = find_disparities(valid_ranges, disparity_check)
-print(test_disparities)
+# print(test_disparities)
 
 ## ABOVE IS VALIDATED
 
+angles = np.linspace(laser_scan["angle_min"], laser_scan["angle_max"], len(valid_ranges))
 # Now that we know where the disparities are, we can EXTEND them
 # For each disparity, we want to extend it towards the increase in range values
 # The extension distance needs to be half the width of the car
@@ -99,19 +103,29 @@ extension_distance = 0.15
 
 def extend_disparities(ranges, disparities, extension_distance):
     for i in disparities:
-        # Get the range value at the disparity
-        disparity_range = ranges[i]
-        # Get the range value at the next point
-        next_range = ranges[i+1]
-        # Calculate the angle between the two points
-        angle = math.atan2(next_range - disparity_range, 1)
-        # Calculate the number of points to rewrite
-        num_points = int(angle / laser_scan["angle_increment"])
-        # Rewrite the points
-        for j in range(1, num_points):
-            ranges[i+j] = disparity_range + j * extension_distance
+        triangle_height = ranges[i]
+        triangle_base = extension_distance
+        angle_to_extend = math.atan(triangle_base / triangle_height)
+        points_to_rewrite = int(angle_to_extend / laser_scan["angle_increment"])
+        # print(points_to_rewrite)
+        # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+        if i - points_to_rewrite < 0:
+            for j in range(i + points_to_rewrite):
+                if ranges[j] > ranges[i]:
+                    ranges[j] = ranges[i]
+        elif i + points_to_rewrite > len(ranges):
+            for j in range(i - points_to_rewrite, len(ranges)):
+                if ranges[j] > ranges[i]:
+                    ranges[j] = ranges[i]
+        else:
+            for j in range(i - points_to_rewrite, i + points_to_rewrite):
+                if ranges[j] > ranges[i]:
+                    ranges[j] = ranges[i]
+        # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+    return ranges
 
-    return # return the extended ranges
+# todo: publish the ranges to a new /extended_scans topic
+extended_ranges = extend_disparities(valid_ranges, test_disparities, extension_distance)
 
 # Now that we have extended the disparities, we have a set of virtual ranges in configuration space
 # There are two options/strategies for following the gap
@@ -158,11 +172,20 @@ def find_largest_gap(ranges):
         if gap_size > best_gap_size:
             best_gap_start, best_gap_end = start, len(ranges) - 1
     return best_gap_start, best_gap_end
+
 # BUILD A FUNCTION TO FIND THE DEEPEST
 
-# def find_deepest_gap(ranges):
-    
-#     return # return the start and end indices of the deepest
+def find_deepest_index(ranges):
+    deep_index = np.argmax(ranges)    
+    return deep_index
+
+desired_index = find_deepest_index(extended_ranges)
+print(desired_index)
+print(angles[desired_index])
+print(valid_ranges[desired_index])
+print(extended_ranges[desired_index])
+
+
 
 # Now that we have the desired gap, we can calculate the steering angle and speed
 

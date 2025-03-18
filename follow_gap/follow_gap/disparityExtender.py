@@ -14,7 +14,10 @@ class disparityExtender(Node):
         
         # Threshold for extending disparities (in meters)
         # This should ideally be half the width of the car 
-        self.disparity_threshold = 0.5    
+        self.extension_distance = 0.20
+
+        # Threshold for detecting disparities (in meters)
+        self.disparity_check = 0.5    
 
         # Base speed (m/s) on straightaways
         self.base_speed = 0.75           
@@ -46,12 +49,34 @@ class disparityExtender(Node):
 
         self.publish_command(steering_angle, speed)
 
-    def find_largest_gap(self, ranges):
+    def find_disparities(ranges, check_value):
         """
-        Identify the largest contiguous segment of nonzero values in the ranges.
+        Identifies disparities in the LiDAR scan data.
+
+        A disparity is defined as a significant jump in range values between consecutive points.
+        This function iterates through the range values and records the indices where the jump
+        exceeds the specified check value.
+
+        Parameters:
+            ranges (np.array): Array of range values from the LiDAR scan.
+            check_value (float): The minimum difference between consecutive range values to be considered a disparity.
+
+        Returns:
+            list: A list of indices where disparities are detected.
         """
-        largest_gap = (0, 0)
-        return largest_gap
+        disparities = []
+        for i in range(0, len(ranges)-1):
+            # Need to check if the current or the next range is zero
+            # If it is, we need to skip it
+            if ranges[i] == 0 or ranges[i+1] == 0:
+                continue
+            # If the next range is positively larger than the current range, we have a disparity at i
+            if -(ranges[i] - ranges[i+1]) >= check_value:
+                disparities.append(i)
+            # Check if the difference between the current range and the next range is greater than the check value
+            if ranges[i] - ranges[i+1] >= check_value:
+                disparities.append(i+1)
+        return disparities
 
     def publish_command(self, steering_angle, speed):
         """
