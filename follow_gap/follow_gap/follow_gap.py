@@ -147,6 +147,8 @@ class disparityExtender(Node):
             ranges (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
+        ranges = np.asarray(ranges, dtype=float)
+        
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
         modified_scan.header.frame_id = 'base_link' # The modified scan data is rotated to the base_link frame
