@@ -90,7 +90,7 @@ class disparityExtender(Node):
         for i in disparities:
             # triangle_height = ranges[i]
             # triangle_base = self.extension_distance
-            angle_to_extend = np.atan(self.extension_distance / ranges[i])``
+            angle_to_extend = np.atan(self.extension_distance / ranges[i])
             points_to_rewrite = int(angle_to_extend / angle_increment)
             # print(points_to_rewrite)
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
