@@ -43,7 +43,9 @@ class disparityExtender(Node):
         # ranges = np.clip(ranges, scan.range_min, scan.range_max)
         ranges = np.clip(ranges, scan.range_min, 4.0)
         ranges = np.nan_to_num(ranges, nan=0.0)
-        self.occlude_ranges(ranges, 180.0, 180.0)
+        ranges[:len(ranges)//4] = 0.0
+        ranges[3*len(ranges)//4:] = 0.0
+        # self.occlude_ranges(ranges, 180.0, 180.0)
 
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities(ranges, self.disparity_check)
@@ -119,6 +121,8 @@ class disparityExtender(Node):
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
+            if ranges[i] < 1.0: # Disparities are only extended if the range greater than 1.0
+                continue
             angle_to_extend = np.arctan(self.extension_distance / ranges[i])
             points_to_rewrite = int(angle_to_extend / angle_increment * ranges[i]) 
                 # Multiplying by ranges[i] to prevent disparity extension at close ranges
