@@ -124,7 +124,7 @@ class disparityExtender(Node):
             if ranges[i] < 1.0: # Disparities are only extended if the range greater than 1.0
                 continue
             angle_to_extend = np.arctan(self.extension_distance / ranges[i])
-            points_to_rewrite = int(angle_to_extend / angle_increment * ranges[i]) 
+            points_to_rewrite = int(angle_to_extend / angle_increment ) # * ranges[i]) 
                 # Multiplying by ranges[i] to prevent disparity extension at close ranges
                 # Just the ranges value itself is on the right order to scale the extension it seems
 
