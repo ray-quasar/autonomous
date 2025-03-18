@@ -31,6 +31,7 @@ class disparityExtender(Node):
         """
         # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
+        angle_increment = scan.angle_increment
 
         # Preprocess the scan data
         ranges = np.clip(ranges, scan.range_min, scan.range_max)
@@ -42,7 +43,7 @@ class disparityExtender(Node):
         disparities = self.find_disparities(ranges, self.disparity_check)
 
         # Extend disparities in the LiDAR scan data
-        ranges = self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
+        ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
 
         # Find the index of the deepest point in the LiDAR scan data
         deep_index = self.find_deepest_index(ranges)
@@ -86,10 +87,9 @@ class disparityExtender(Node):
                 disparities.append(i+1)
         return disparities
     
+    #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
-            # triangle_height = ranges[i]
-            # triangle_base = self.extension_distance
             angle_to_extend = np.atan(self.extension_distance / ranges[i])
             points_to_rewrite = int(angle_to_extend / angle_increment)
             # print(points_to_rewrite)
