@@ -90,7 +90,7 @@ class disparityExtender(Node):
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
-            angle_to_extend = np.atan(self.extension_distance / ranges[i])
+            angle_to_extend = np.arctan(self.extension_distance / ranges[i])
             points_to_rewrite = int(angle_to_extend / angle_increment)
             # print(points_to_rewrite)
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
