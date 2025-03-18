@@ -13,15 +13,18 @@ class disparityExtender(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         
         # Threshold for extending disparities (in meters)
-        # This should ideally be half the width of the car 
         self.extension_distance = 0.20
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.5    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.75           
+        self.base_speed = 0.75      
 
+        # Maximum steering angle (radians)
+        self.max_steering_angle = 0.34     
+    
+    # Main LiDAR scan processing function
     def lidar_callback(self, scan):
         """
         Callback function for processing incoming LiDAR scan data.
@@ -29,25 +32,30 @@ class disparityExtender(Node):
         # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
 
-        # Remove values behind the car entirely
-        valid_ranges = np.copy(ranges)
-        valid_ranges = valid_ranges[len(valid_ranges)//4:3*len(valid_ranges)//4]
+        # Preprocess the scan data
+        ranges = np.clip(ranges, scan.range_min, scan.range_max)
+        ranges = np.nan_to_num(ranges)
+        ranges[:len(ranges)//4] = 0
+        ranges[3*len(ranges)//4:] = 0
 
-        
-        
-        # Find the largest gap in the extended valid ranges
-        gap_start, gap_end = self.find_largest_gap(ext_ranges)
+        # Find disparities in the LiDAR scan data
+        disparities = self.find_disparities(ranges, self.disparity_check)
 
-        # Calculate the steering angle and speed
-        # The steering angle should be the average angle of the largest gap
-        # The speed should be the base speed if the gap is wide, and slower if it's narrow
-        # Speed should also be moderated by the depth of the gap and the steering angle
-        # The steering angle should be positive if the gap is to the left, and negative if to the right
-        # If there is no gap, stop the car
-        steering_angle = 0.0
-        speed = 0.0
+        # Extend disparities in the LiDAR scan data
+        ranges = self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
+
+        # Find the index of the deepest point in the LiDAR scan data
+        deep_index = self.find_deepest_index(ranges)
+
+        # Determine the steering angle and speed
+        steering_angle = scan.angle_min + deep_index * scan.angle_increment
+        steering_angle = max(min(steering_angle, 0.34), -0.34)
+        
+        speed = self.base_speed
 
         self.publish_command(steering_angle, speed)
+
+    # Helper functions
 
     def find_disparities(ranges, check_value):
         """
@@ -77,16 +85,38 @@ class disparityExtender(Node):
             if ranges[i] - ranges[i+1] >= check_value:
                 disparities.append(i+1)
         return disparities
+    
+    def extend_disparities(ranges, disparities, extension_distance, angle_increment):
+        for i in disparities:
+            triangle_height = ranges[i]
+            triangle_base = extension_distance
+            angle_to_extend = np.atan(triangle_base / triangle_height)
+            points_to_rewrite = int(angle_to_extend / angle_increment)
+            # print(points_to_rewrite)
+            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+            if i - points_to_rewrite < 0:
+                for j in range(i + points_to_rewrite):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            elif i + points_to_rewrite > len(ranges):
+                for j in range(i - points_to_rewrite, len(ranges)):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            else:
+                for j in range(i - points_to_rewrite, i + points_to_rewrite):
+                    if ranges[j] > ranges[i]:
+                        ranges[j] = ranges[i]
+            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
+        return ranges
+    
+    def find_deepest_index(ranges):
+        deep_index = np.argmax(ranges)    
+        return deep_index
 
     def publish_command(self, steering_angle, speed):
         """
-        Publish an AckermannDriveStamped command with limited steering angle.
-        """
-        # Limit the steering angle to +/- 0.34 radians (20 degrees)
-        # This should really be a parameter, but we'll hard-code it for now
-
-        steering_angle = max(min(steering_angle, 0.34), -0.34)
-        
+        Publish an AckermannDriveStamped command message.
+        """        
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"

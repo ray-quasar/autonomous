@@ -179,6 +179,10 @@ def find_deepest_index(ranges):
     deep_index = np.argmax(ranges)    
     return deep_index
 
+# This is going to be edited to return the average of all the indices 
+# with max values or values above a certain threshold
+
+
 desired_index = find_deepest_index(extended_ranges)
 print(desired_index)
 print(angles[desired_index])
