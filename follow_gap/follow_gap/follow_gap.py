@@ -21,7 +21,7 @@ class disparityExtender(Node):
         self.disparity_check = 0.5    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.75      
+        self.base_speed = 0.0      
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
