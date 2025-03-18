@@ -15,13 +15,13 @@ class disparityExtender(Node):
         self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.20
+        self.extension_distance = 0.40
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.5    
+        self.disparity_check = 0.75    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.0      
+        self.base_speed = 0.0     
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -40,7 +40,8 @@ class disparityExtender(Node):
         ranges = np.flip(ranges)
 
         # Preprocess the scan data
-        ranges = np.clip(ranges, scan.range_min, scan.range_max)
+        # ranges = np.clip(ranges, scan.range_min, scan.range_max)
+        ranges = np.clip(ranges, scan.range_min, 4.0)
         ranges = np.nan_to_num(ranges, nan=0.0)
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
@@ -98,7 +99,7 @@ class disparityExtender(Node):
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
             angle_to_extend = np.arctan(self.extension_distance / ranges[i])
-            points_to_rewrite = int(angle_to_extend / angle_increment)
+            points_to_rewrite = int(angle_to_extend / angle_increment * ranges[i]) # Added the half for troubleshooting on S
             # print(points_to_rewrite)
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
             if i - points_to_rewrite < 0:
@@ -136,7 +137,7 @@ class disparityExtender(Node):
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"Desired Steering: {steering_angle:.2f} rad, \n Published Steering: {steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
+            f"Desired Steering: {steering_angle:.2f} rad, \n Published Steering: {bounded_steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
         )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
