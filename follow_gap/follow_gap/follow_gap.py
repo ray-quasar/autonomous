@@ -15,13 +15,13 @@ class disparityExtender(Node):
         self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.40
+        self.extension_distance = 0.30
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.75    
+        self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.0     
+        self.base_speed = 0.75    
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -121,8 +121,8 @@ class disparityExtender(Node):
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
-            if ranges[i] < 1.0: # Disparities are only extended if the range greater than 1.0
-                continue
+            # if ranges[i] < 1.0: # Disparities are only extended if the range greater than 1.0
+            #     continue
             angle_to_extend = np.arctan(self.extension_distance / ranges[i])
             points_to_rewrite = int(angle_to_extend / angle_increment ) # * ranges[i]) 
                 # Multiplying by ranges[i] to prevent disparity extension at close ranges
