@@ -18,7 +18,7 @@ class disparityExtender(Node):
         self.extension_distance = 0.40
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.75    
+        self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
         self.base_speed = 0.0     

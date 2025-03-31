@@ -175,15 +175,35 @@ def find_largest_gap(ranges):
 
 # BUILD A FUNCTION TO FIND THE DEEPEST
 
-def find_deepest_index(ranges):
-    deep_index = np.argmax(ranges)    
-    return deep_index
+def find_deepest_gap(ranges):
+    """
+    Finds the "deepest" gap in the scan by first locating the index with the maximum
+    range value and then expanding left and right until the values drop below 90% of
+    that maximum.
+    
+    Parameters:
+        ranges (np.array): Array of (extended) range values.
+        
+    Returns:
+        tuple: (start_index, end_index) of the deepest gap.
+    """
+    # Find the index of the maximum range value
+    best_index = np.argmax(ranges)
+    # Expand left and right until the values drop below 90% of the maximum
+    threshold = 0.9 * ranges[best_index]
+    left = best_index
+    right = best_index
+    while left > 0 and ranges[left - 1] >= threshold:
+        left -= 1
+    while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+        right += 1
+    # return the start and end indices of the deepest gap
+    # can be easily edited to return the middle of the gap
+    return left, right
 
-# This is going to be edited to return the average of all the indices 
-# with max values or values above a certain threshold
 
 
-desired_index = find_deepest_index(extended_ranges)
+desired_index = find_deepest_gap(extended_ranges)
 print(desired_index)
 print(angles[desired_index])
 print(valid_ranges[desired_index])
