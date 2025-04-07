@@ -45,7 +45,7 @@ class disparityExtender(Node):
         ranges = np.nan_to_num(ranges, nan=0.0)
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
-        # self.occlude_ranges(ranges, 180.0, 180.0)
+        # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities(ranges, self.disparity_check)
@@ -157,8 +157,8 @@ class disparityExtender(Node):
         Publish an AckermannDriveStamped command message to the '/drive' topic.
 
         """   
-        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34) 
-
+        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34)
+        
         # Limit speed to half at full turn
         speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
 
