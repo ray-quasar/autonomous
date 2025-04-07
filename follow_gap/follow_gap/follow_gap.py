@@ -15,13 +15,13 @@ class disparityExtender(Node):
         self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.30
+        self.extension_distance = 0.20
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.75    
+        self.base_speed = 1.5    
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -157,7 +157,10 @@ class disparityExtender(Node):
         Publish an AckermannDriveStamped command message to the '/drive' topic.
 
         """   
-        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34)
+        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34) 
+
+        # Limit speed to half at full turn
+        speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
