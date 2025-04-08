@@ -64,9 +64,10 @@ class disparityExtender(Node):
         target_angle = scan.angle_min + deep_index * scan.angle_increment
         # steering_angle = max(min(steering_angle, 0.34), -0.34)
 
-        speed = self.base_speed
+        # speed = self.base_speed
 
-        self.publish_drive_command(target_angle, speed)
+        self.publish_drive_command(target_angle, ranges[deep_index])
+        # self.publish_drive_command(steering_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
@@ -156,7 +157,7 @@ class disparityExtender(Node):
         deep_index = np.argmax(ranges)    
         return deep_index
 
-    def publish_drive_command(self, steering_angle, depth):
+    def publish_drive_command(self, target_angle, depth):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
 
@@ -167,11 +168,11 @@ class disparityExtender(Node):
         # steering_angle = atan(wheelbase * curvature)
         # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
         # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
-        target_steering_angle = np.arctan(
-            self.wheelbase * 2 * np.sin(steering_angle) / depth
+        theoretical_steering_angle = np.arctan(
+            self.wheelbase * 2 * np.sin(target_angle) / depth
         )
 
-        bounded_steering_angle = max(min(target_steering_angle, 0.34), -0.34)
+        bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
         # Limit speed to half at full turn
         # speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
@@ -186,7 +187,9 @@ class disparityExtender(Node):
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"Desired Steering: {target_steering_angle:.2f} rad, \n Published Steering: {bounded_steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
+            f"""Target Angle: {target_angle:.2f} rad, 
+            Published Steering: {bounded_steering_angle:.2f} rad, 
+            Speed: {speed:.2f} m/s"""
         )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
