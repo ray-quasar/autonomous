@@ -153,7 +153,7 @@ class disparityExtender(Node):
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
         return ranges
     
-    def find_deepest_gap(ranges):
+    def find_deepest_gap(self, ranges):
         """
         #Finds the "deepest" gap in the scan by first locating the index with the maximum
         range value and then expanding left and right until the values drop below 90% of
