@@ -18,13 +18,14 @@ class disparityExtender(Node):
         self.wheelbase = 0.325
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.20
+        self.extension_distance = 0.10
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 1.5    
+        # self.base_speed = 1.5  
+        self.base_speed = 0.0  
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -60,22 +61,12 @@ class disparityExtender(Node):
         deep_index = self.find_deepest_index(ranges)
 
         # Determine the steering angle and speed
-        # steering_angle = scan.angle_min + deep_index * scan.angle_increment
+        target_angle = scan.angle_min + deep_index * scan.angle_increment
         # steering_angle = max(min(steering_angle, 0.34), -0.34)
 
-        # Because the car uses a Ackermann steering system, we need to calculate the steering angle
-        # based on the curvature of the path we want to take and the wheelbase of the car
-        # The formula for the steering angle is:
-        # steering_angle = atan(wheelbase * curvature)
-        # curvature = 2 * ranges[deep_index] * sin(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
-        # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
-        steering_angle = np.arctan(
-            self.wheelbase * 2 * np.sin(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index])
-        )
-        
         speed = self.base_speed
 
-        self.publish_drive_command(steering_angle, speed)
+        self.publish_drive_command(target_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
@@ -165,15 +156,26 @@ class disparityExtender(Node):
         deep_index = np.argmax(ranges)    
         return deep_index
 
-    def publish_drive_command(self, steering_angle, speed):
+    def publish_drive_command(self, steering_angle, depth):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
 
         """   
-        bounded_steering_angle = max(min(steering_angle, 0.34), -0.34)
+        # Because the car uses a Ackermann steering system, we need to calculate the steering angle
+        # based on the curvature of the path we want to take and the wheelbase of the car
+        # The formula for the steering angle is:
+        # steering_angle = atan(wheelbase * curvature)
+        # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
+        # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
+        target_steering_angle = np.arctan(
+            self.wheelbase * 2 * np.sin(steering_angle) / depth
+        )
+
+        bounded_steering_angle = max(min(target_steering_angle, 0.34), -0.34)
         
         # Limit speed to half at full turn
-        speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
+        # speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
+        speed = 0.0
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
@@ -184,7 +186,7 @@ class disparityExtender(Node):
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"Desired Steering: {steering_angle:.2f} rad, \n Published Steering: {bounded_steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
+            f"Desired Steering: {target_steering_angle:.2f} rad, \n Published Steering: {bounded_steering_angle:.2f} rad, \n Speed: {speed:.2f} m/s"
         )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
