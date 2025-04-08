@@ -190,10 +190,22 @@ class disparityExtender(Node):
         # steering_angle = atan(wheelbase * curvature)
         # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
         # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
-        theoretical_steering_angle = np.arctan(
-            self.wheelbase * 2 * np.sin(target_angle) / depth
-        )
 
+        # if the cos(theta) term is larger (magnitude) than the sin(theta) term, we can use the below formula
+        if abs(np.sin(target_angle)) <= abs(np.cos(target_angle)):
+            theoretical_steering_angle = np.arctan(
+                self.wheelbase * 2 * np.sin(target_angle) / depth
+            )
+
+        # if the sin(theta) term is larger (magnitude) than the cos(theta) term, we can use the below formula
+        # which truncates the x component (depth*sin(theta)) term to cos(theta) * depth
+        if abs(np.sin(target_angle)) > abs(np.cos(target_angle)):
+            theoretical_steering_angle = np.arctan(
+                self.wheelbase / ( depth * np.cos(target_angle))
+            )
+        
+
+        # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
         # Limit speed to half at full turn
