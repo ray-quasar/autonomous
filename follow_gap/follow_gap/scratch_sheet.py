@@ -173,7 +173,7 @@ def find_largest_gap(ranges):
             best_gap_start, best_gap_end = start, len(ranges) - 1
     return best_gap_start, best_gap_end
 
-# BUILD A FUNCTION TO FIND THE DEEPEST
+# Average the gap and lead the car to the middle
 
 def find_deepest_gap(ranges):
     """
@@ -185,7 +185,7 @@ def find_deepest_gap(ranges):
         ranges (np.array): Array of (extended) range values.
         
     Returns:
-        tuple: (start_index, end_index) of the deepest gap.
+        Middle of the deepest gap.
     """
     # Find the index of the maximum range value
     best_index = np.argmax(ranges)
@@ -199,15 +199,17 @@ def find_deepest_gap(ranges):
         right += 1
     # return the start and end indices of the deepest gap
     # can be easily edited to return the middle of the gap
-    return left, right
+    middle = (left + right) // 2
+    #make middle function
+    return middle
 
 
 
-desired_index = find_deepest_gap(extended_ranges)
-print(desired_index)
-print(angles[desired_index])
-print(valid_ranges[desired_index])
-print(extended_ranges[desired_index])
+#desired_index = find_deepest_gap(extended_ranges)
+#print(desired_index)
+#print(angles[desired_index])
+#print(valid_ranges[desired_index])
+#print(extended_ranges[desired_index])
 
 
 

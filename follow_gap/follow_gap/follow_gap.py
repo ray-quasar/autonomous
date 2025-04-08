@@ -153,9 +153,31 @@ class disparityExtender(Node):
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
         return ranges
     
-    def find_deepest_index(self, ranges):
-        deep_index = np.argmax(ranges)    
-        return deep_index
+    def find_deepest_gap(ranges):
+        """
+        #Finds the "deepest" gap in the scan by first locating the index with the maximum
+        range value and then expanding left and right until the values drop below 90% of
+        that maximum.
+        Parameters:
+            ranges (np.array): Array of (extended) range values.
+        Returns:
+            Middle of the deepest gap.
+        """
+        # Find the index of the maximum range value
+        best_index = np.argmax(ranges)
+        # Expand left and right until the values drop below 90% of the maximum
+        threshold = 0.9 * ranges[best_index]
+        left = best_index
+        right = best_index
+        while left > 0 and ranges[left - 1] >= threshold:
+            left -= 1
+        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+            right += 1
+        # return the start and end indices of the deepest gap
+        # can be easily edited to return the middle of the gap
+        middle = (left + right) // 2
+        #make middle function
+        return middle
 
     def publish_drive_command(self, target_angle, depth):
         """
