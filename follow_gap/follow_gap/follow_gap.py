@@ -58,7 +58,7 @@ class disparityExtender(Node):
         ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
 
         # Find the index of the deepest point in the LiDAR scan data
-        deep_index = self.find_deepest_index(ranges)
+        deep_index = self.find_deepest_gap(ranges)
 
         # Determine the steering angle and speed
         target_angle = scan.angle_min + deep_index * scan.angle_increment
