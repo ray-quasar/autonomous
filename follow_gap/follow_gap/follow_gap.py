@@ -13,6 +13,9 @@ class disparityExtender(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
         # Publisher for modified range data
         self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
+
+        # Wheelbase of the car (in meters)
+        self.wheelbase = 0.325
         
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.20
@@ -57,8 +60,18 @@ class disparityExtender(Node):
         deep_index = self.find_deepest_index(ranges)
 
         # Determine the steering angle and speed
-        steering_angle = scan.angle_min + deep_index * scan.angle_increment
+        # steering_angle = scan.angle_min + deep_index * scan.angle_increment
         # steering_angle = max(min(steering_angle, 0.34), -0.34)
+
+        # Because the car uses a Ackermann steering system, we need to calculate the steering angle
+        # based on the curvature of the path we want to take and the wheelbase of the car
+        # The formula for the steering angle is:
+        # steering_angle = atan(wheelbase * curvature)
+        # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
+        # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
+        steering_angle = np.arctan(
+            self.wheelbase * 2 * np.cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index])
+        )
         
         speed = self.base_speed
 
@@ -182,7 +195,7 @@ class disparityExtender(Node):
             ranges (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
-        #ranges = np.asarray(ranges, dtype=float)
+        # ROS 2 requires the ranges to be a list, not a NumPy array
         ranges = ranges.tolist()
         
         modified_scan = LaserScan()
