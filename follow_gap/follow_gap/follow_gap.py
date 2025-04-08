@@ -67,10 +67,10 @@ class disparityExtender(Node):
         # based on the curvature of the path we want to take and the wheelbase of the car
         # The formula for the steering angle is:
         # steering_angle = atan(wheelbase * curvature)
-        # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
+        # curvature = 2 * ranges[deep_index] * sin(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
         # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
         steering_angle = np.arctan(
-            self.wheelbase * 2 * np.cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index])
+            self.wheelbase * 2 * np.sin(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index])
         )
         
         speed = self.base_speed
