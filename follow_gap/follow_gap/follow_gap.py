@@ -230,6 +230,9 @@ class disparityExtender(Node):
         # We subtract some portion of that difference from the base speed based 
         # on the proportion of the steering angle to the maximum steering angle
         speed = speed - (speed - 2.0) * (np.abs(bounded_steering_angle) / self.max_steering_angle) 
+        # I don't know if this is enough, the car doesn't actually go full lock when taking the turn
+        # Also we definitely need to be slowing down before the turn, not at the apex of the turn
+        # It might be a good idea to pass in the forward distance to the car as well (Approach 4)
 
         # Approach 2: Scaling speed based on the depth of the gap
         # I don't think this is feasible, as the depth of the gap is not a good indicator of speed
@@ -240,7 +243,7 @@ class disparityExtender(Node):
         # If this is how we moderate the speed, we should modify the steering angle calc to be a 
         # function of the curvature rather than simplifying it out of the equation like we have been doing
         # The formula for the curvature is:
-        
+
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
