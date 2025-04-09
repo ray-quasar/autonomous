@@ -234,8 +234,8 @@ class disparityExtender(Node):
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
             f"""
-            Target Location: {depth:.2f} m, {np.rad2deg(target_angle):.2f} deg, 
-            Published Steering: {np.rad2deg(bounded_steering_angle):.2f} deg, 
+            Target Location: {depth:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+            Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
             Speed: {speed:.2f} m/s
             """
         )
@@ -248,12 +248,19 @@ class disparityExtender(Node):
             ranges (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
+        # Experimental: Fixing position of the scan data in RViz
+        # Undo the rotation of the scan data about the z-axis
+        ranges = np.roll(ranges, -len(ranges)//2)
+        # Undo the rotation of the scan data about the x-axis
+        ranges = np.flip(ranges)
+
         # ROS 2 requires the ranges to be a list, not a NumPy array
         ranges = ranges.tolist()
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
-        modified_scan.header.frame_id = 'base_link' # The modified scan data is rotated to the base_link frame
+        #modified_scan.header.frame_id = 'base_link' # The modified scan data is rotated to the base_link frame
+        modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
         modified_scan.angle_min = raw_scan_data.angle_min
         modified_scan.angle_max = raw_scan_data.angle_max
         modified_scan.angle_increment = raw_scan_data.angle_increment
