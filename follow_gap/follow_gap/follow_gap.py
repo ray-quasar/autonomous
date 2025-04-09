@@ -155,9 +155,10 @@ class disparityExtender(Node):
     
     def find_deepest_gap(self, ranges):
         """
-        #Finds the "deepest" gap in the scan by first locating the index with the maximum
+        Finds the "deepest" gap in the scan by first locating the index with the maximum
         range value and then expanding left and right until the values drop below 90% of
         that maximum.
+
         Parameters:
             ranges (np.array): Array of (extended) range values.
         Returns:
@@ -182,6 +183,9 @@ class disparityExtender(Node):
     def publish_drive_command(self, target_angle, depth):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
+        Parameters:
+            target_angle (float): The desired steering angle in radians.
+            depth (float): The distance to the target point in meters.
 
         """   
         # Because the car uses a Ackermann steering system, we need to calculate the steering angle
@@ -190,18 +194,26 @@ class disparityExtender(Node):
         # steering_angle = atan(wheelbase * curvature)
         # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
         # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
-
-        # if the cos(theta) term is larger (magnitude) than the sin(theta) term, we can use the below formula
-        if abs(np.sin(target_angle)) <= abs(np.cos(target_angle)):
+        # steering_angle = atan(wheelbase * 2 * sin(target_angle) / depth)
+        
+        # If the target angle is between -pi/4 and pi/4, we can use the regular formula for the steering angle
+        if np.pi / 4 >= target_angle >= -np.pi / 4:
             theoretical_steering_angle = np.arctan(
                 self.wheelbase * 2 * np.sin(target_angle) / depth
             )
-
-        # if the sin(theta) term is larger (magnitude) than the cos(theta) term, we can use the below formula
-        # which truncates the x component (depth*sin(theta)) term to cos(theta) * depth
-        if abs(np.sin(target_angle)) > abs(np.cos(target_angle)):
+        # If we are aimed greater than pi/4, we need to truncate the length of the x-component of the vector
+        # to get a tighter turn and avoid turning arcs that go through walls
+        # The formula for the steering angle is: 
+        # steering_angle = atan(wheelbase / (depth * cos(target_angle)))
+        # But getting rid of the sin term, we lose the ability to turn negative
+        # So we need to add a negative sign to the steering angle if the target angle is negative
+        elif np.pi / 4 < target_angle < np.pi:
             theoretical_steering_angle = np.arctan(
-                self.wheelbase / ( depth * np.cos(target_angle))
+                self.wheelbase / (depth * np.cos(target_angle))
+            )
+        elif -np.pi < target_angle < -np.pi / 4:
+            theoretical_steering_angle = np.arctan(
+                -self.wheelbase / (depth * np.cos(target_angle))
             )
         
 
@@ -221,9 +233,11 @@ class disparityExtender(Node):
         
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
-            f"""Target Angle: {target_angle:.2f} rad, 
-            Published Steering: {bounded_steering_angle:.2f} rad, 
-            Speed: {speed:.2f} m/s"""
+            f"""
+            Target Location: {depth:.2f} m, {np.rad2deg(target_angle):.2f} deg, 
+            Published Steering: {np.rad2deg(bounded_steering_angle):.2f} deg, 
+            Speed: {speed:.2f} m/s
+            """
         )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
