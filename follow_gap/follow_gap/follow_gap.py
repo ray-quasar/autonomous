@@ -24,8 +24,7 @@ class disparityExtender(Node):
         self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        # self.base_speed = 1.5  
-        self.base_speed = 0.0  
+        self.base_speed = 6.0
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -220,9 +219,28 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        # Limit speed to half at full turn
-        # speed = speed * (1 - 0.5 * abs(bounded_steering_angle) / 0.34)
-        speed = 0.0
+        # We seem to be able to take the turn in the corridor reliably at ~2.0 m/s
+        speed = self.base_speed # = 6.0 m/s
+
+        # The speed can be limited by the steering angle and/or the depth of the gap
+        # and/or the curvature of the path and/or the distance directly in front of the car
+
+        # Approach 1: Limit speed to 2.0 m/s at full turn, scaling linearly to max at 0.0 rad
+        # (speed - 2) is the difference between the base speed and the minimum speed
+        # We subtract some portion of that difference from the base speed based 
+        # on the proportion of the steering angle to the maximum steering angle
+        speed = speed - (speed - 2.0) * (np.abs(bounded_steering_angle) / self.max_steering_angle) 
+
+        # Approach 2: Scaling speed based on the depth of the gap
+        # I don't think this is feasible, as the depth of the gap is not a good indicator of speed
+        # A deep gap to the side of the car requires a slower speed 
+
+        # Approach 3: Scaling speed based on the curvature of the path
+        # The curvature is defined as the inverse of the radius of the turn
+        # If this is how we moderate the speed, we should modify the steering angle calc to be a 
+        # function of the curvature rather than simplifying it out of the equation like we have been doing
+        # The formula for the curvature is:
+        
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
