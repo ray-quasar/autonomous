@@ -3,6 +3,7 @@ import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
+from sensor_msgs.msg import Joy
 
 class disparityExtender(Node):
     def __init__(self):
@@ -18,16 +19,24 @@ class disparityExtender(Node):
         self.wheelbase = 0.325
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.10
+        self.extension_distance = 0.15
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 1.5
+        self.base_speed = 0.0
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
+
+        # Deadman switch state
+        self.deadman_active = False
+
+        # Subscribe to joystick messages to monitor RB button (button 7)
+        self.joy_sub = self.create_subscription(
+            Joy, '/joy', self.joy_callback, 10
+        )
     
     # Main LiDAR scan processing function
     def lidar_callback(self, scan):
@@ -178,6 +187,13 @@ class disparityExtender(Node):
         middle = (left + right) // 2
         #make middle function
         return middle
+
+    def joy_callback(self, msg):
+        """
+        Callback to monitor joystick input and update deadman state.
+        """
+        # Check if RB (button 7) is pressed
+        self.deadman_active = msg.buttons[7] == 1
 
     def publish_drive_command(self, scan, ranges, deep_index):
         """
