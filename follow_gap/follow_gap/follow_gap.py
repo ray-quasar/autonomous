@@ -30,14 +30,6 @@ class disparityExtender(Node):
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
 
-        # Deadman switch state
-        self.deadman_active = False
-
-        # Subscribe to joystick messages to monitor RB button (button 7)
-        self.joy_sub = self.create_subscription(
-            Joy, '/joy', self.joy_callback, 10
-        )
-    
     # Main LiDAR scan processing function
     def lidar_callback(self, scan):
         """
@@ -188,20 +180,12 @@ class disparityExtender(Node):
         #make middle function
         return middle
 
-    def joy_callback(self, msg):
-        """
-        Callback to monitor joystick input and update deadman state.
-        """
-        # Check if RB (button 7) is pressed
-        self.deadman_active = msg.buttons[7] == 1
-
     def publish_drive_command(self, scan, ranges, deep_index):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
         Parameters:
 
         """   
-
         forward_distance = ranges[len(ranges)//2]   # The distance directly in front of the car
         target_distance = ranges[deep_index]  # The distance to the target point
         target_angle = scan.angle_min + deep_index * scan.angle_increment  # The angle to the target point
@@ -226,7 +210,7 @@ class disparityExtender(Node):
         # If the target angle is between -pi/4 and pi/4, we can use the regular formula for the steering angle
         if True: #np.pi / 4 >= target_angle >= -np.pi / 4:
             theoretical_steering_angle = np.arctan(
-                self.wheelbase * 2 * np.sin(target_angle) / depth
+                self.wheelbase * 2 * np.sin(target_angle) / target_distance
             )
         # If we are aimed greater than pi/4, we need to truncate the length of the x-component of the vector
         # to get a tighter turn and avoid turning arcs that go through walls
