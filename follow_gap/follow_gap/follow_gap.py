@@ -24,7 +24,7 @@ class disparityExtender(Node):
         self.disparity_check = 0.65    
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 6.0
+        self.base_speed = 1.5
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -60,12 +60,12 @@ class disparityExtender(Node):
         deep_index = self.find_deepest_gap(ranges)
 
         # Determine the steering angle and speed
-        target_angle = scan.angle_min + deep_index * scan.angle_increment
+        # target_angle = scan.angle_min + deep_index * scan.angle_increment
         # steering_angle = max(min(steering_angle, 0.34), -0.34)
 
         # speed = self.base_speed
 
-        self.publish_drive_command(target_angle, ranges[deep_index])
+        self.publish_drive_command(scan, ranges, deep_index)
         # self.publish_drive_command(steering_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
@@ -179,24 +179,36 @@ class disparityExtender(Node):
         #make middle function
         return middle
 
-    def publish_drive_command(self, target_angle, depth):
+    def publish_drive_command(self, scan, ranges, deep_index):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
         Parameters:
-            target_angle (float): The desired steering angle in radians.
-            depth (float): The distance to the target point in meters.
 
         """   
-        # Because the car uses a Ackermann steering system, we need to calculate the steering angle
-        # based on the curvature of the path we want to take and the wheelbase of the car
-        # The formula for the steering angle is:
-        # steering_angle = atan(wheelbase * curvature)
-        # curvature = 2 * ranges[deep_index] * cos(deep_index * scan.angle_increment + scan.angle_min) / (ranges[deep_index] ** 2)
-        # ranges[deep_index] cancels out of the numerator, the calculation is simplified to:
-        # steering_angle = atan(wheelbase * 2 * sin(target_angle) / depth)
+
+        forward_distance = ranges[len(ranges)//2]   # The distance directly in front of the car
+        target_distance = ranges[deep_index]  # The distance to the target point
+        target_angle = scan.angle_min + deep_index * scan.angle_increment  # The angle to the target point
+
+
+        # Ackermann Steering Angle Calculation:
+        # - Based on curvature of the path and the wheelbase of the car
+        # - The formula for the steering angle is:
+        #       steering_angle = atan(wheelbase * curvature)
+        #       curvature = 2 * target_distance * sin(target_angle) / target_distance^2
+        #  - target_distance cancels out of the numerator, the calculation is simplified to:
+        #       steering_angle = atan(wheelbase * 2 * sin(target_angle) / target_distance)
         
+        # - The width of the track constrains target_distance*cos(target_angle) to <= forward_distance
+        # - The updated value of the hypotenuse is:
+        #      hypotenuse = forward_distance / cos(target_angle)
+
+        new_target_distance = forward_distance / np.cos(target_angle)
+        if new_target_distance < target_distance:
+            target_distance = new_target_distance
+
         # If the target angle is between -pi/4 and pi/4, we can use the regular formula for the steering angle
-        if np.pi / 4 >= target_angle >= -np.pi / 4:
+        if True: #np.pi / 4 >= target_angle >= -np.pi / 4:
             theoretical_steering_angle = np.arctan(
                 self.wheelbase * 2 * np.sin(target_angle) / depth
             )
@@ -219,8 +231,7 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        # We seem to be able to take the turn in the corridor reliably at ~2.0 m/s
-        speed = self.base_speed # = 6.0 m/s
+        speed = self.base_speed 
 
         # The speed can be limited by the steering angle and/or the depth of the gap
         # and/or the curvature of the path and/or the distance directly in front of the car
@@ -229,7 +240,7 @@ class disparityExtender(Node):
         # (speed - 2) is the difference between the base speed and the minimum speed
         # We subtract some portion of that difference from the base speed based 
         # on the proportion of the steering angle to the maximum steering angle
-        speed = speed - (speed - 2.0) * (np.abs(bounded_steering_angle) / self.max_steering_angle) 
+        # speed = speed - (speed - 2.0) * (np.abs(bounded_steering_angle) / self.max_steering_angle) 
         # I don't know if this is enough, the car doesn't actually go full lock when taking the turn
         # Also we definitely need to be slowing down before the turn, not at the apex of the turn
         # It might be a good idea to pass in the forward distance to the car as well (Approach 4)
@@ -255,7 +266,7 @@ class disparityExtender(Node):
         self.drive_pub.publish(drive_msg)
         self.get_logger().info(
             f"""
-            Target Location: {depth:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+            Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
             Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
             Speed: {speed:.2f} m/s
             """
