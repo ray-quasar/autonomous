@@ -207,27 +207,10 @@ class disparityExtender(Node):
         if new_target_distance < target_distance:
             target_distance = new_target_distance
 
-        # If the target angle is between -pi/4 and pi/4, we can use the regular formula for the steering angle
-        if True: #np.pi / 4 >= target_angle >= -np.pi / 4:
-            theoretical_steering_angle = np.arctan(
-                self.wheelbase * 2 * np.sin(target_angle) / target_distance
-            )
-        # If we are aimed greater than pi/4, we need to truncate the length of the x-component of the vector
-        # to get a tighter turn and avoid turning arcs that go through walls
-        # The formula for the steering angle is: 
-        # steering_angle = atan(wheelbase / (depth * cos(target_angle)))
-        # But getting rid of the sin term, we lose the ability to turn negative
-        # So we need to add a negative sign to the steering angle if the target angle is negative
-        elif np.pi / 4 < target_angle < np.pi:
-            theoretical_steering_angle = np.arctan(
-                self.wheelbase / (depth * np.cos(target_angle))
-            )
-        elif -np.pi < target_angle < -np.pi / 4:
-            theoretical_steering_angle = np.arctan(
-                -self.wheelbase / (depth * np.cos(target_angle))
-            )
+        theoretical_steering_angle = np.arctan(
+            self.wheelbase * 2 * np.sin(target_angle) / target_distance
+        )
         
-
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
@@ -249,11 +232,6 @@ class disparityExtender(Node):
         # I don't think this is feasible, as the depth of the gap is not a good indicator of speed
         # A deep gap to the side of the car requires a slower speed 
 
-        # Approach 3: Scaling speed based on the curvature of the path
-        # The curvature is defined as the inverse of the radius of the turn
-        # If this is how we moderate the speed, we should modify the steering angle calc to be a 
-        # function of the curvature rather than simplifying it out of the equation like we have been doing
-        # The formula for the curvature is:
 
 
         drive_msg = AckermannDriveStamped()
