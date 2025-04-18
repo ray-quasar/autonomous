@@ -22,10 +22,13 @@ class disparityExtender(Node):
         self.extension_distance = 0.15
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.65    
+        self.disparity_check = 0.65   
+
+        # Lookahead distance (in meters)
+        self.lookahead_distance = 6.0 
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 0.0
+        self.base_speed = 1.5
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -45,7 +48,7 @@ class disparityExtender(Node):
 
         # Preprocess the scan data
         # ranges = np.clip(ranges, scan.range_min, scan.range_max)
-        ranges = np.clip(ranges, scan.range_min, 4.0)
+        ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
         ranges = np.nan_to_num(ranges, nan=0.0)
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
@@ -214,7 +217,14 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        speed = self.base_speed 
+        speed = 0.0
+
+        alpha = - (6.0 / np.pi/2)
+        beta = self.base_speed / self.lookahead_distance
+
+        speed = alpha * np.abs(target_angle) + beta * forward_distance
+
+
 
         # The speed can be limited by the steering angle and/or the depth of the gap
         # and/or the curvature of the path and/or the distance directly in front of the car
