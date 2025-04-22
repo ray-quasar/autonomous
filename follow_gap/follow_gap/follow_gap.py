@@ -19,7 +19,7 @@ class disparityExtender(Node):
         self.wheelbase = 0.325
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.15
+        self.extension_distance = 0.2
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.65   
@@ -28,7 +28,7 @@ class disparityExtender(Node):
         self.lookahead_distance = 6.0 
 
         # Base speed (m/s) on straightaways
-        self.base_speed = 1.5
+        self.base_speed = 4.0
 
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
@@ -50,8 +50,10 @@ class disparityExtender(Node):
         # ranges = np.clip(ranges, scan.range_min, scan.range_max)
         ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
         ranges = np.nan_to_num(ranges, nan=0.0)
-        ranges[:len(ranges)//4] = 0.0
-        ranges[3*len(ranges)//4:] = 0.0
+
+        # Occlude the ranges to a specified FOV (Field of View)
+        ranges[:len(ranges)//6] = 0.0
+        ranges[5*len(ranges)//6:] = 0.0
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
@@ -61,7 +63,8 @@ class disparityExtender(Node):
         ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
 
         # Find the index of the deepest point in the LiDAR scan data
-        deep_index = self.find_deepest_gap(ranges)
+        # deep_index = self.find_deepest_gap(ranges)
+        deep_index = self.find_deepest_index(ranges)
 
         # Determine the steering angle and speed
         # target_angle = scan.angle_min + deep_index * scan.angle_increment
@@ -183,6 +186,21 @@ class disparityExtender(Node):
         #make middle function
         return middle
 
+    def find_deepest_index(self, ranges):
+        """
+        Finds the index of the deepest point in the LiDAR scan data.
+        The deepest point is defined as the point with the maximum range value.
+
+        Parameters:
+            ranges (np.array): Array of range values from the LiDAR scan.
+
+        Returns:
+            int: Index of the deepest point in the LiDAR scan data.
+        """
+        # Find the index of the maximum range value
+        return np.argmax(ranges)
+    
+
     def publish_drive_command(self, scan, ranges, deep_index):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
@@ -217,12 +235,13 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        speed = 0.0
+        speed = 1.0
 
-        alpha = - (6.0 / np.pi/2)
-        beta = self.base_speed / self.lookahead_distance
+        # alpha = - (0.5 / np.pi/2)
+        # beta = self.base_speed / self.lookahead_distance
 
-        speed = alpha * np.abs(target_angle) + beta * forward_distance
+        # speed = alpha * np.abs(target_angle) + beta * forward_distance
+        # speed = max(min(speed, self.base_speed), 1.0)
 
 
 
