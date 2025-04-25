@@ -237,11 +237,11 @@ class disparityExtender(Node):
         
         speed = 1.0
 
-        # alpha = - (0.5 / np.pi/2)
-        # beta = self.base_speed / self.lookahead_distance
+        alpha = - (0.5 / np.pi/2)
+        beta = self.base_speed / self.lookahead_distance
 
-        # speed = alpha * np.abs(target_angle) + beta * forward_distance
-        # speed = max(min(speed, self.base_speed), 1.0)
+        speed = alpha * np.abs(target_angle) + beta * forward_distance
+        speed = max(min(speed, self.base_speed), 1.0)
 
 
 
