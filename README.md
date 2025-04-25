@@ -1,1 +1,1 @@
-My follow the gap code (Written and edited by chat)
+RayQuasar novel disparity extender autonomous racing algorithm 
