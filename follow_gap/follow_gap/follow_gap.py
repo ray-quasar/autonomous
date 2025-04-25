@@ -41,10 +41,15 @@ class disparityExtender(Node):
         # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
 
+        ## Removing this and working with the raw data instead will be faster
+        ## They do not operate in place
+
         # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
         # Rotate the scan data about x-axis
         ranges = np.flip(ranges)
+
+        ##
 
         # Preprocess the scan data
         # ranges = np.clip(ranges, scan.range_min, scan.range_max)
@@ -271,13 +276,13 @@ class disparityExtender(Node):
         drive_msg.drive.speed = speed
         
         self.drive_pub.publish(drive_msg)
-        self.get_logger().info(
-            f"""
-            Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
-            Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
-            Speed: {speed:.2f} m/s
-            """
-        )
+        # self.get_logger().info(
+        #     f"""
+        #     Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+        #     Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+        #     Speed: {speed:.2f} m/s
+        #     """
+        # )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
         """
