@@ -315,11 +315,11 @@ class disparityExtender(Node):
         modified_scan.intensities = raw_scan_data.intensities
 
         self.ext_scan_publisher.publish(modified_scan)
-        self.ext_scan_publisher = self.create_publisher(
-            LaserScan,
-            '/ext_scan',  # Topic name for modified range data
-            10  # QoS
-        )
+        # self.ext_scan_publisher = self.create_publisher(
+        #     LaserScan,
+        #     '/ext_scan',  # Topic name for modified range data
+        #     10  # QoS
+        # )
 
 def main(args=None):
     rclpy.init(args=args)
