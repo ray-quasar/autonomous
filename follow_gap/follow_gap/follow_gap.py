@@ -19,13 +19,13 @@ class disparityExtender(Node):
         self.wheelbase = 0.325
         
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.2
+        self.extension_distance = 0.175 
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.65   
+        self.disparity_check = 0.75   
 
         # Lookahead distance (in meters)
-        self.lookahead_distance = 6.0 
+        self.lookahead_distance = 8.0 
 
         # Base speed (m/s) on straightaways
         self.base_speed = 4.0
@@ -57,8 +57,8 @@ class disparityExtender(Node):
         ranges = np.nan_to_num(ranges, nan=0.0)
 
         # Occlude the ranges to a specified FOV (Field of View)
-        ranges[:len(ranges)//6] = 0.0
-        ranges[5*len(ranges)//6:] = 0.0
+        ranges[:len(ranges)//4] = 0.0
+        ranges[3*len(ranges)//4:] = 0.0
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
@@ -240,12 +240,16 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        speed = 1.0
+        # speed = 1.0
 
-        alpha = - (0.5 / np.pi/2)
-        beta = self.base_speed / self.lookahead_distance
+        # alpha = - (0.5 / np.pi/2)
+        # beta = self.base_speed / self.lookahead_distance
 
-        speed = alpha * np.abs(target_angle) + beta * forward_distance
+        # speed = alpha * np.abs(target_angle) + beta * forward_distance
+        speed_scalar = 1.0
+
+        speed = speed_scalar * self.base_speed * (forward_distance / self.lookahead_distance) + 1.0 
+
         speed = max(min(speed, self.base_speed), 1.0)
 
 
@@ -276,13 +280,13 @@ class disparityExtender(Node):
         drive_msg.drive.speed = speed
         
         self.drive_pub.publish(drive_msg)
-        # self.get_logger().info(
-        #     f"""
-        #     Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
-        #     Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
-        #     Speed: {speed:.2f} m/s
-        #     """
-        # )
+        self.get_logger().info(
+            f"""
+            Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+            Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+            Speed: {speed:.2f} m/s
+            """
+        )
 
     def publish_laser_scan(self, ranges, raw_scan_data):
         """
