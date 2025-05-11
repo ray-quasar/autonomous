@@ -22,7 +22,7 @@ class disparityExtender(Node):
         self.extension_distance = 0.175 
 
         # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.75   
+        self.disparity_check = 0.85   
 
         # Lookahead distance (in meters)
         self.lookahead_distance = 8.0 
@@ -60,6 +60,9 @@ class disparityExtender(Node):
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
         # self.occlude_ranges(ranges, 180.0, 180.0
+
+        # Using averaging filter to smooth the data
+        ranges = np.convolve(ranges, np.ones(5)/5, mode='same')
 
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities(ranges, self.disparity_check)
@@ -251,6 +254,8 @@ class disparityExtender(Node):
         speed = speed_scalar * self.base_speed * (forward_distance / self.lookahead_distance) + 1.0 
 
         speed = max(min(speed, self.base_speed), 1.0)
+
+        # speed = max(min(forward_distance, 1.0), self.base_speed)
 
 
 
