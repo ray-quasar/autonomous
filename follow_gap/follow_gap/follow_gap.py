@@ -56,13 +56,13 @@ class disparityExtender(Node):
         ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
         ranges = np.nan_to_num(ranges, nan=0.0)
 
+        # Using averaging filter to smooth the data
+        ranges = np.convolve(ranges, np.ones(5)/5, mode='same')
+
         # Occlude the ranges to a specified FOV (Field of View)
         ranges[:len(ranges)//4] = 0.0
         ranges[3*len(ranges)//4:] = 0.0
         # self.occlude_ranges(ranges, 180.0, 180.0
-
-        # Using averaging filter to smooth the data
-        ranges = np.convolve(ranges, np.ones(5)/5, mode='same')
 
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities(ranges, self.disparity_check)
@@ -137,6 +137,30 @@ class disparityExtender(Node):
                 disparities.append(i+1)
         return disparities
     
+    def find_disparities_convolution(ranges, check_value):
+        """
+        Identifies disparities in the LiDAR scan data using convolution.
+
+        A disparity is defined as a significant jump in range values between consecutive points.
+        This function uses a convolution with an edge detection kernel to find disparities.
+
+        Parameters:
+            ranges (np.array): Array of range values from the LiDAR scan.
+            check_value (float): The minimum difference between consecutive range values to be considered a disparity.
+
+        Returns:
+            list: A list of indices where disparities are detected.
+        """
+        # Apply convolution with an edge detection kernel
+        edge_filter = np.array([-1, 1])
+        convolved = np.convolve(ranges, edge_filter, mode='same')
+
+        # Find indices where the absolute value of the convolution exceeds the check_value
+        disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
+
+        # Adjust indices to account for the 'valid' mode of convolution
+        return disparity_indices
+
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
