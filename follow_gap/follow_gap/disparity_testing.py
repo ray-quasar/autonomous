@@ -53,4 +53,13 @@ extension_distance = 2
 # -> indices: [ [x1-2, x1-1, x1], [x2, x2+1, x2+2], [x3-2, x3-1, x3], [x4, x4+1, x4+2] ]
 # Ideally, we want to do this in a single pass
 
-extension_indices = []
+for d in disparities:
+    print(np.arange(abs(d), abs(d) - np.sign(d)*extension_distance))
+
+
+
+# extension_indices = np.stack([
+#     np.arange(d, d - np.sign(d)*extension_distance)
+#     for d in disparities
+# ])
+# print(extension_indices)

@@ -328,7 +328,11 @@ class disparityExtender(Node):
             scan_data (LaserScan): Original LiDAR scan data.
         """
         disparities_values = np.zeros(len(ranges))
-        disparities_values = ranges[disparities]
+        disparities_values[disparities] = ranges[disparities]
+
+        disparities_values = np.flip(np.roll(disparities_values, -len(disparities_values)//2))
+
+        disparities_values = disparities_values.tolist()
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
@@ -339,7 +343,7 @@ class disparityExtender(Node):
         modified_scan.scan_time = raw_scan_data.scan_time
         modified_scan.range_min = raw_scan_data.range_min
         modified_scan.range_max = raw_scan_data.range_max
-        modified_scan.ranges = ranges
+        modified_scan.ranges = disparities_values
         modified_scan.intensities = raw_scan_data.intensities
 
         self.disparity_pub.publish(modified_scan)
