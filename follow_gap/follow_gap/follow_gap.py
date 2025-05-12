@@ -158,36 +158,28 @@ class disparityExtender(Node):
         # Find indices where the absolute value of the convolution exceeds the check_value
         disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
 
-        # Adjust indices to account for the 'valid' mode of convolution
-        return disparity_indices
+        return disparity_indices[1:]  # Ignore the first index, as it is not a valid disparity
 
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
-            # if ranges[i] < 1.0: # Disparities are only extended if the range greater than 1.0
-            #     continue
-            angle_to_extend = np.arctan(self.extension_distance / ranges[i])
-            points_to_rewrite = int(angle_to_extend / angle_increment ) # * ranges[i]) 
-                # Multiplying by ranges[i] to prevent disparity extension at close ranges
-                # Just the ranges value itself is on the right order to scale the extension it seems
 
-                # I may make it so that the extension is also scaled by how close to the edge of the fov the disparity is
-                # This way, the disparity extension is more at the edges of the fov
+            disparity_distance = np.min([ranges[i-1], ranges[i]])
+            angle_to_extend = np.arctan(self.extension_distance / disparity_distance)
+            points_to_rewrite = int(angle_to_extend / angle_increment ) 
 
-            # print(points_to_rewrite)
-            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
             if i - points_to_rewrite < 0:
                 for j in range(i + points_to_rewrite):
                     if ranges[j] > ranges[i]:
-                        ranges[j] = ranges[i]
+                        ranges[j] = disparity_distance
             elif i + points_to_rewrite > len(ranges):
                 for j in range(i - points_to_rewrite, len(ranges)):
                     if ranges[j] > ranges[i]:
-                        ranges[j] = ranges[i]
+                        ranges[j] = disparity_distance
             else:
                 for j in range(i - points_to_rewrite, i + points_to_rewrite):
                     if ranges[j] > ranges[i]:
-                        ranges[j] = ranges[i]
+                        ranges[j] = disparity_distance
             # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
         return ranges
     
