@@ -4,6 +4,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import Joy
+from scipy.ndimage import convolve1d
 
 class disparityExtender(Node):
     def __init__(self):
@@ -46,8 +47,8 @@ class disparityExtender(Node):
         ## Removing this and working with the raw data instead will be faster
         ## They do not operate in place
         
-        # Using averaging filter to smooth the data
-        ranges = np.convolve(ranges, np.ones(3)/3, mode='same')
+        # Using averaging filter to smooth the data with wrap-around
+        ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
 
         # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
