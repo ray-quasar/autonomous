@@ -69,11 +69,11 @@ class disparityExtender(Node):
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
-        # disparities = self.find_disparities(ranges, self.disparity_check)
-        disparities = self.find_disparities_convolution(ranges, self.disparity_check)
+        disparities = self.find_disparities(ranges, self.disparity_check)
+        # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
         # self.get_logger().info(f"Disparities: {disparities}")
         # Publish the disparity points to the '/disparities' topic
-        self.publish_disparity_scan(disparities, scan)
+        self.publish_disparity_scan(ranges, disparities, scan)
 
         # Extend disparities in the LiDAR scan data
         ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
