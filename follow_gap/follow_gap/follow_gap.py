@@ -12,6 +12,8 @@ class disparityExtender(Node):
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
         # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        # Publisher for disparity identifier scan data
+        self.disparity_pub = self.create_publisher(LaserScan, '/disparity', 10)
         # Publisher for modified range data
         self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
 
@@ -25,7 +27,7 @@ class disparityExtender(Node):
         self.disparity_check = 0.85   
 
         # Lookahead distance (in meters)
-        self.lookahead_distance = 8.0 
+        self.lookahead_distance = 6.0 
 
         # Base speed (m/s) on straightaways
         self.base_speed = 4.0
@@ -43,6 +45,9 @@ class disparityExtender(Node):
 
         ## Removing this and working with the raw data instead will be faster
         ## They do not operate in place
+        
+        # Using averaging filter to smooth the data
+        ranges = np.convolve(ranges, np.ones(3)/3, mode='same')
 
         # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
@@ -56,8 +61,7 @@ class disparityExtender(Node):
         ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
         ranges = np.nan_to_num(ranges, nan=0.0)
 
-        # Using averaging filter to smooth the data
-        ranges = np.convolve(ranges, np.ones(5)/5, mode='same')
+        
 
         # Occlude the ranges to a specified FOV (Field of View)
         ranges[:len(ranges)//4] = 0.0
@@ -65,7 +69,11 @@ class disparityExtender(Node):
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
-        disparities = self.find_disparities(ranges, self.disparity_check)
+        # disparities = self.find_disparities(ranges, self.disparity_check)
+        disparities = self.find_disparities_convolution(ranges, self.disparity_check)
+        # self.get_logger().info(f"Disparities: {disparities}")
+        # Publish the disparity points to the '/disparities' topic
+        self.publish_disparity_scan(disparities, scan)
 
         # Extend disparities in the LiDAR scan data
         ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
@@ -137,7 +145,7 @@ class disparityExtender(Node):
                 disparities.append(i+1)
         return disparities
     
-    def find_disparities_convolution(ranges, check_value):
+    def find_disparities_convolution(self, ranges, check_value):
         """
         Identifies disparities in the LiDAR scan data using convolution.
 
@@ -271,6 +279,8 @@ class disparityExtender(Node):
 
         speed = max(min(speed, self.base_speed), 1.0)
 
+        speed = 0.0
+
         # speed = max(min(forward_distance, 1.0), self.base_speed)
 
 
@@ -309,6 +319,31 @@ class disparityExtender(Node):
             """
         )
 
+    def publish_disparity_scan(self, ranges, disparities, raw_scan_data):
+        """
+        Publish the disparity points to the '/disparities' topic.
+
+        Parameters:
+            disparities (np.array): Modified range data.
+            scan_data (LaserScan): Original LiDAR scan data.
+        """
+        disparities_values = np.zeros(len(ranges))
+        disparities_values = ranges[disparities]
+        
+        modified_scan = LaserScan()
+        modified_scan.header.stamp = raw_scan_data.header.stamp
+        modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
+        modified_scan.angle_min = raw_scan_data.angle_min
+        modified_scan.angle_max = raw_scan_data.angle_max
+        modified_scan.angle_increment = raw_scan_data.angle_increment
+        modified_scan.scan_time = raw_scan_data.scan_time
+        modified_scan.range_min = raw_scan_data.range_min
+        modified_scan.range_max = raw_scan_data.range_max
+        modified_scan.ranges = ranges
+        modified_scan.intensities = raw_scan_data.intensities
+
+        self.disparity_pub.publish(modified_scan)
+
     def publish_laser_scan(self, ranges, raw_scan_data):
         """
         Publish the modified range data to the '/ext_scan' topic.
@@ -328,7 +363,6 @@ class disparityExtender(Node):
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
-        #modified_scan.header.frame_id = 'base_link' # The modified scan data is rotated to the base_link frame
         modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
         modified_scan.angle_min = raw_scan_data.angle_min
         modified_scan.angle_max = raw_scan_data.angle_max
@@ -340,11 +374,6 @@ class disparityExtender(Node):
         modified_scan.intensities = raw_scan_data.intensities
 
         self.ext_scan_publisher.publish(modified_scan)
-        # self.ext_scan_publisher = self.create_publisher(
-        #     LaserScan,
-        #     '/ext_scan',  # Topic name for modified range data
-        #     10  # QoS
-        # )
 
 def main(args=None):
     rclpy.init(args=args)
