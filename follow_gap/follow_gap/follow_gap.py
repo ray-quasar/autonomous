@@ -48,7 +48,7 @@ class disparityExtender(Node):
         ## They do not operate in place
         
         # Using averaging filter to smooth the data with wrap-around
-        ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
+        #ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
 
         # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
@@ -70,7 +70,7 @@ class disparityExtender(Node):
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
-        disparities = self.find_disparities(ranges, self.disparity_check)
+        disparities = self.find_disparities_diff(ranges, self.disparity_check)
         # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
         # self.get_logger().info(f"Disparities: {disparities}")
         # Publish the disparity points to the '/disparities' topic
@@ -80,8 +80,8 @@ class disparityExtender(Node):
         ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
 
         # Find the index of the deepest point in the LiDAR scan data
-        # deep_index = self.find_deepest_gap(ranges)
-        deep_index = self.find_deepest_index(ranges)
+        deep_index = self.find_deepest_gap(ranges)
+        #deep_index = self.find_deepest_index(ranges)
 
         # Determine the steering angle and speed
         # target_angle = scan.angle_min + deep_index * scan.angle_increment
@@ -117,7 +117,7 @@ class disparityExtender(Node):
         ranges[:start_index] = 0.0
         ranges[end_index:] = 0.0
 
-    def find_disparities(self, ranges, check_value):
+    def find_disparities_diff(self, ranges, check_value):
         """
         Identifies disparities in the LiDAR scan data.
 
@@ -132,19 +132,19 @@ class disparityExtender(Node):
         Returns:
             list: A list of indices where disparities are detected.
         """
-        disparities = []
-        for i in range(0, len(ranges)-1):
-            # Need to check if the current or the next range is zero
-            # If it is, we need to skip it
-            if ranges[i] == 0 or ranges[i+1] == 0:
-                continue
-            # If the next range is positively larger than the current range, we have a disparity at i
-            if -(ranges[i] - ranges[i+1]) >= check_value:
-                disparities.append(i)
-            # Check if the difference between the current range and the next range is greater than the check value
-            if ranges[i] - ranges[i+1] >= check_value:
-                disparities.append(i+1)
-        return disparities
+        valid = (ranges[:-1] > 0) & (ranges[1:] > 0)  # Exclude comparisons with invalid (0) ranges
+        diffs = np.diff(ranges)
+
+        disparities = np.where((np.abs(diffs) >= check_value) & valid)[0]
+
+        # Assign i and i+1 depending on direction
+        results = []
+        for i in disparities:
+            if diffs[i] > 0:
+                results.append(i)    # right is farther, left is closer
+            else:
+                results.append(i + 1)  # left is farther, right is closer
+        return results
     
     def find_disparities_convolution(self, ranges, check_value):
         """
