@@ -274,10 +274,10 @@ class disparityExtender(Node):
         # beta = self.base_speed / self.lookahead_distance
 
         # speed = alpha * np.abs(target_angle) + beta * forward_distance
-        speed_scalar = 2.0
+        speed_scalar = 1.5
         # Logistic function for speed modulation. increasing speed_scalar makes the jump from 1 mps to 4 mps sharper.
         # and the -3 means that the jump happens centered at 3 meters ahead
-        speed = (self.base_speed-1 / (1 + exp(-speed_scalar(forward_distance - 3)))) + 1
+        speed = (self.base_speed-1 / (1 + exp(-speed_scalar(forward_distance - 4)))) + 1
         
         speed = max(min(speed, self.base_speed), 1.0)
 
