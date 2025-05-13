@@ -218,20 +218,6 @@ class disparityExtender(Node):
         middle = (left + right) // 2
         #make middle function
         return middle
-
-    def find_deepest_index(self, ranges):
-        """
-        Finds the index of the deepest point in the LiDAR scan data.
-        The deepest point is defined as the point with the maximum range value.
-
-        Parameters:
-            ranges (np.array): Array of range values from the LiDAR scan.
-
-        Returns:
-            int: Index of the deepest point in the LiDAR scan data.
-        """
-        # Find the index of the maximum range value
-        return np.argmax(ranges)
     
 
     def publish_drive_command(self, scan, ranges, deep_index):
@@ -277,7 +263,7 @@ class disparityExtender(Node):
         speed_scalar = 1.5
         # Logistic function for speed modulation. increasing speed_scalar makes the jump from 1 mps to 4 mps sharper.
         # and the -3 means that the jump happens centered at 3 meters ahead
-        speed = (self.base_speed-1 / (1 + exp(-speed_scalar(forward_distance - 4)))) + 1
+        speed = (self.base_speed-1 / (1 + np.exp(-speed_scalar*(forward_distance - 4)))) + 1
         
         speed = max(min(speed, self.base_speed), 1.0)
 
