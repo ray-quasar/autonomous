@@ -28,7 +28,7 @@ class disparityExtender(Node):
         self.disparity_check = 0.85   
 
         # Lookahead distance (in meters)
-        self.lookahead_distance = 6.0 
+        self.lookahead_distance = 8.0 
 
         # Base speed (m/s) on straightaways
         self.base_speed = 4.0
@@ -167,7 +167,7 @@ class disparityExtender(Node):
         # Find indices where the absolute value of the convolution exceeds the check_value
         disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
 
-        return disparity_indices[1:]  # Ignore the first index, as it is not a valid disparity
+        return disparity_indices[1:-1]  # Ignore the first index, as it is not a valid disparity
 
     #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
@@ -280,7 +280,7 @@ class disparityExtender(Node):
 
         speed = max(min(speed, self.base_speed), 1.0)
 
-        speed = 0.0
+        # speed = 0.0
 
         # speed = max(min(forward_distance, 1.0), self.base_speed)
 
