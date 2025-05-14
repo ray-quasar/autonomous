@@ -40,26 +40,18 @@ class disparityExtender(Node):
         """
         # Convert raw scan data to a NumPy array
         ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
-
-        ## Removing this and working with the raw data instead will be faster
-        ## They do not operate in place
         
         # Using averaging filter to smooth the data with wrap-around
-        #ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
+        # ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
 
         # Rotate the scan data about z-axis
         ranges = np.roll(ranges, len(ranges)//2)
         # Rotate the scan data about x-axis
         ranges = np.flip(ranges)
 
-        ##
-
         # Preprocess the scan data
-        # ranges = np.clip(ranges, scan.range_min, scan.range_max)
         ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
         ranges = np.nan_to_num(ranges, nan=0.0)
-
-        
 
         # Occlude the ranges to a specified FOV (Field of View)
         ranges[:len(ranges)//4] = 0.0
@@ -69,7 +61,7 @@ class disparityExtender(Node):
         # Find disparities in the LiDAR scan data
         disparities = self.find_disparities_diff(ranges, self.disparity_check)
         # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
-        # self.get_logger().info(f"Disparities: {disparities}")
+
         # Publish the disparity points to the '/disparities' topic
         self.publish_disparity_scan(ranges, disparities, scan)
 
@@ -78,41 +70,11 @@ class disparityExtender(Node):
 
         # Find the index of the deepest point in the LiDAR scan data
         deep_index = self.find_deepest_gap(ranges)
-        #deep_index = self.find_deepest_index(ranges)
-
-        # Determine the steering angle and speed
-        # target_angle = scan.angle_min + deep_index * scan.angle_increment
-        # steering_angle = max(min(steering_angle, 0.34), -0.34)
-
-        # speed = self.base_speed
 
         self.publish_drive_command(scan, ranges, deep_index)
-        # self.publish_drive_command(steering_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
-
-    def occlude_ranges(ranges, fov_size, fov_center):
-        """
-        Occlude the ranges to a specified FOV.
-
-        Parameters:
-            ranges (np.array): The range data.
-            fov_size (float): The size of the FOV in degrees.
-            fov_center (float): The center of the FOV in degrees.
-        """
-        num_ranges = len(ranges)
-        
-        # Calculate the start and end indices for the FOV using proportions
-        fov_size_proportion = fov_size / 360.0
-        fov_center_proportion = fov_center / 360.0
-        
-        start_index = int((fov_center_proportion - fov_size_proportion / 2) * num_ranges)
-        end_index = int((fov_center_proportion + fov_size_proportion / 2) * num_ranges)
-        
-        # Occlude the ranges outside the FOV
-        ranges[:start_index] = 0.0
-        ranges[end_index:] = 0.0
 
     def find_disparities_diff(self, ranges, check_value):
         """
@@ -166,7 +128,6 @@ class disparityExtender(Node):
 
         return disparity_indices[1:-1]  # Ignore the first index, as it is not a valid disparity
 
-    #self.extend_disparities(ranges, disparities, self.extension_distance, scan.angle_increment)
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
 
