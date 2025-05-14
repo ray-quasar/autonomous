@@ -30,9 +30,6 @@ class disparityExtender(Node):
         # Lookahead distance (in meters)
         self.lookahead_distance = 8.0 
 
-        # Base speed (m/s) on straightaways
-        self.base_speed = 4.0
-
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34     
 
@@ -89,7 +86,7 @@ class disparityExtender(Node):
 
         # speed = self.base_speed
 
-        self.publish_drive_command(scan, ranges, deep_index)
+        # self.publish_drive_command(scan, ranges, deep_index)
         # self.publish_drive_command(steering_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
@@ -254,42 +251,18 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        # speed = 1.0
+        forward_distance = max(ranges[len(ranges)//2 - 2 : len(ranges)//2 + 2])
 
-        # alpha = - (0.5 / np.pi/2)
-        # beta = self.base_speed / self.lookahead_distance
-
-        # speed = alpha * np.abs(target_angle) + beta * forward_distance
-        speed_scalar = 1.5
-        # Logistic function for speed modulation. increasing speed_scalar makes the jump from 1 mps to 4 mps sharper.
-        # and the -3 means that the jump happens centered at 3 meters ahead
-        speed = (self.base_speed - 1) / (1 + np.exp(-speed_scalar*(forward_distance - 4)))) + 1
+        speed_max = 5.0
+        speed_min = 1.0
+        accel = 1.3
+        a_center = 3.4
         
-        speed = max(min(speed, self.base_speed), 1.0)
-
-        # speed = 0.0
-
-        # speed = max(min(forward_distance, 1.0), self.base_speed)
-
-
-
-        # The speed can be limited by the steering angle and/or the depth of the gap
-        # and/or the curvature of the path and/or the distance directly in front of the car
-
-        # Approach 1: Limit speed to 2.0 m/s at full turn, scaling linearly to max at 0.0 rad
-        # (speed - 2) is the difference between the base speed and the minimum speed
-        # We subtract some portion of that difference from the base speed based 
-        # on the proportion of the steering angle to the maximum steering angle
-        # speed = speed - (speed - 2.0) * (np.abs(bounded_steering_angle) / self.max_steering_angle) 
-        # I don't know if this is enough, the car doesn't actually go full lock when taking the turn
-        # Also we definitely need to be slowing down before the turn, not at the apex of the turn
-        # It might be a good idea to pass in the forward distance to the car as well (Approach 4)
-
-        # Approach 2: Scaling speed based on the depth of the gap
-        # I don't think this is feasible, as the depth of the gap is not a good indicator of speed
-        # A deep gap to the side of the car requires a slower speed 
-
-
+        speed = (
+                (speed_max - speed_min) 
+                / (1 + np.exp(- accel * (forward_distance - a_center))) 
+                + speed_min
+        )
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
