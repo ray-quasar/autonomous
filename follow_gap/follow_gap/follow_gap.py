@@ -86,7 +86,7 @@ class disparityExtender(Node):
 
         # speed = self.base_speed
 
-        # self.publish_drive_command(scan, ranges, deep_index)
+        self.publish_drive_command(scan, ranges, deep_index)
         # self.publish_drive_command(steering_angle, speed)
         self.publish_laser_scan(ranges, scan)
 
