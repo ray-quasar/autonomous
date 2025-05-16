@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='your_name',
+    maintainer='Sanjot Singh',
     maintainer_email='your_email@example.com',
-    description='Follow the Gap algorithm implementation',
+    description='Disparity Extender algorithm implementation',
     license='Apache License 2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'disparityExtender = disparityExtender.follow_gap:main',
+            'disparityExtender = disparityExtender.disparityExtender:main',
         ],
     },
 )
