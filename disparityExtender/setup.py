@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'follow_gap'
+package_name = 'disparityExtender'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'follow_gap = follow_gap.follow_gap:main',
+            'disparityExtender = disparityExtender.follow_gap:main',
         ],
     },
 )

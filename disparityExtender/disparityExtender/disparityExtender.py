@@ -9,6 +9,7 @@ from scipy.ndimage import convolve1d
 class disparityExtender(Node):
     def __init__(self):
         super().__init__('disparityExtender')
+        
         # Subscribe to LiDAR scans (assumed on '/scan')
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
         # Publisher for AckermannDriveStamped messages on '/drive'
@@ -20,7 +21,7 @@ class disparityExtender(Node):
 
         # Wheelbase of the car (in meters)
         self.wheelbase = 0.325
-        
+        so
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.175 
 
@@ -212,12 +213,12 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        forward_distance = max(ranges[len(ranges)//2 - 2 : len(ranges)//2 + 2])
+        forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
 
-        speed_max = 5.0
+        speed_max = 6.0
         speed_min = 1.0
-        accel = 1.3
-        a_center = 3.4
+        accel = 1.0
+        a_center = 3.0
         
         speed = (
                 (speed_max - speed_min) 
