@@ -200,18 +200,16 @@ class disparityExtender(Node):
         convolved = convolve1d(ranges, edge_filter, mode='wrap')
 
         # Detect left and right disparities
-        right_disparities = np.clip(
-            np.where(
-                convolved < -check_value
-            )[0], self._scan_params['num_points']//4, 3*self._scan_params['num_points']//4
-        )
-        # right_disparities = [0]
-        left_disparities = np.clip(
-            np.where(
-                convolved > check_value
-            )[0], self._scan_params['num_points']//4, 3*self._scan_params['num_points']//4
-        ) 
-        left_disparities = [0]
+        right_disparities = np.where(
+            (convolved < -check_value) & 
+            (np.arange(len(ranges)) > self._scan_params['num_points']//4) &
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4)
+        )[0]
+        left_disparities = np.where(
+            (convolved > check_value) &
+            (np.arange(len(ranges)) > self._scan_params['num_points']//4) &
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4)
+        )[0] 
 
         disparities = np.concatenate((left_disparities,right_disparities))
 
@@ -229,12 +227,14 @@ class disparityExtender(Node):
         # Vectorized left extension
         left_starts = np.clip(left_disparities - num_pts_left, 0, self._scan_params['num_points'])
         for start, end in zip(left_starts, left_disparities):
-            extended_ranges[start:end] = ranges[end]
+            mask = extended_ranges[start:end] > ranges[end]
+            extended_ranges[start:end][mask] = ranges[end]
 
         # Vectorized right extension
         right_ends = np.clip(right_disparities + num_pts_right, 0, self._scan_params['num_points'])
         for start, end in zip(right_disparities, right_ends):
-            extended_ranges[start:end] = ranges[start]
+            mask = extended_ranges[start:end] > ranges[start]
+            extended_ranges[start:end][mask] = ranges[start]
 
         return disparities, extended_ranges
 
