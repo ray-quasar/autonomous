@@ -106,28 +106,38 @@ class disparityExtender(Node):
                 results.append(i + 1)  # left is farther, right is closer
         return results
     
-    def find_disparities_convolution(self, ranges, check_value):
-        """
-        Identifies disparities in the LiDAR scan data using convolution.
+    def convolutional_disp_extender(self, ranges, check_value, angle_increment):
+        # The disparity is defined as the the JUMP in the range values >= check_value
 
-        A disparity is defined as a significant jump in range values between consecutive points.
-        This function uses a convolution with an edge detection kernel to find disparities.
-
-        Parameters:
-            ranges (np.array): Array of range values from the LiDAR scan.
-            check_value (float): The minimum difference between consecutive range values to be considered a disparity.
-
-        Returns:
-            list: A list of indices where disparities are detected.
-        """
         # Apply convolution with an edge detection kernel
         edge_filter = np.array([-1, 1])
         convolved = np.convolve(ranges, edge_filter, mode='same')
 
         # Find indices where the absolute value of the convolution exceeds the check_value
-        disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
+        # disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
+        left_disparities = np.where(convolved < -check_value)[0]
+        right_disparities = np.where(convolved > check_value)[0] - 1
 
-        return disparity_indices[1:-1]  # Ignore the first index, as it is not a valid disparity
+        num_pts_rewrite_left = np.array( 
+            np.arctan(self.extension_distance / ranges[left_disparities]) # Angle to extend
+            / angle_increment
+            ).astype(int)
+        num_pts_rewrite_right = np.array( 
+            np.arctan(self.extension_distance / ranges[right_disparities]) # Angle to extend
+            / angle_increment
+            ).astype(int)
+        
+        extended_ranges = ranges
+        for i in left_disparities:
+            extended_ranges[
+                (left_disparities[i] - num_pts_rewrite_left[i]) : left_disparities[i]
+                ] = ranges[left_disparities[i]] 
+        for j in right_disparities:
+            extended_ranges[
+                right_disparities[j] : (right_disparities[j] + num_pts_rewrite_right[i])
+            ] = ranges[right_disparities]
+
+        return extended_ranges
 
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
@@ -162,21 +172,20 @@ class disparityExtender(Node):
         Returns:
             Middle of the deepest gap.
         """
-        # Find the index of the maximum range value
-        best_index = np.argmax(ranges)
-        # Expand left and right until the values drop below 90% of the maximum
-        threshold = 0.9 * ranges[best_index]
-        left = best_index
-        right = best_index
-        while left > 0 and ranges[left - 1] >= threshold:
-            left -= 1
-        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
-            right += 1
-        # return the start and end indices of the deepest gap
-        # can be easily edited to return the middle of the gap
-        middle = (left + right) // 2
-        #make middle function
-        return middle
+        # # Find the index of the maximum range value
+        # best_index = np.argmax(ranges)
+        # # Expand left and right until the values drop below 90% of the maximum
+        # threshold = 0.9 * ranges[best_index]
+        # left = best_index
+        # right = best_index
+        # while left > 0 and ranges[left - 1] >= threshold:
+        #     left -= 1
+        # while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+        #     right += 1
+        # middle = (left + right) // 2
+        # return middle
+
+        return np.average( np.where(ranges > (0.9 * np.max(ranges))) ).astype(int)
     
 
     def publish_drive_command(self, scan, ranges, deep_index):
@@ -225,6 +234,9 @@ class disparityExtender(Node):
                 / (1 + np.exp(- accel * (forward_distance - a_center))) 
                 + speed_min
         )
+
+        # Test mode
+        speed = 0.0
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
