@@ -11,19 +11,27 @@ class disparityExtender(Node):
         super().__init__('disparityExtender')
 
         self.get_logger().info(
-            f"""
-            Thank you for choosing Ray-Quasar for your racing needs.
-            Initializing disparityExtender.
+            r"""
+__________                          ________                                          
+\______   \_____    ___.__.         \_____  \   __ __ _____     ___________   _______ 
+ |       _/\__  \  <   |  |  ______  /  / \  \ |  |  \\__  \   /  ___/\__  \  \_  __ \
+ |    |   \ / __ \_ \___  | /_____/ /   \_/.  \|  |  / / __ \_ \___ \  / __ \_ |  | \/
+ |____|_  /(____  / / ____|         \_____\ \_/|____/ (____  //____  >(____  / |__|   
+        \/      \/  \/                     \__>            \/      \/      \/         
+                            
+                            Initializing disparityExtender.
             """
         )
 
         # Debug and visualization flags
+        self.enable_speed = self.declare_parameter('enable_speed', True).value
         self.enable_logging = self.declare_parameter('enable_logging', True).value
         self.enable_visualization = self.declare_parameter('enable_visualization', True).value
         self.get_logger().info(
             f"""
-            Logging enabled: {self.enable_logging}
-            Visualization enabled: {self.enable_visualization}
+Speed enabled: {self.enable_speed}
+Logging enabled: {self.enable_logging}
+Visualization enabled: {self.enable_visualization}
             """
         )
         
@@ -78,11 +86,7 @@ class disparityExtender(Node):
         # # Rotate the scan data about z-axis
         # ranges = np.roll(ranges, len(ranges)//2)
         # # Rotate the scan data about x-axis
-        # ranges = np.flip(ranges)
-
-        # # Preprocess the scan data
-        # ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
-        # ranges = np.nan_to_num(ranges, nan=0.0)
+        # ranges = np.flip(ranges
 
         # Cache parameters on first scan
         if self._scan_params is None:
@@ -94,26 +98,19 @@ class disparityExtender(Node):
                 'range_max': scan.range_max,
                 'num_points': len(scan.ranges)
             }
-
-        ranges = np.flip(np.roll(
+        
+        # Preprocess the scan data
+        ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
             # convolve1d(
-                np.nan_to_num(np.clip(
-                    np.array(scan.ranges), 
+                np.nan_to_num(np.clip(  # 2. Get rid of garbage values
+                    np.array(scan.ranges),  # 1. Convert scan to NumPy array
                 scan.range_min, self.lookahead_distance), nan=0.0), 
             # np.ones(3)/3, mode='wrap'),
         self._scan_params['num_points']//2))
 
-        # Find disparities in the LiDAR scan data
-        # disparities = self.find_disparities_diff(ranges, self.disparity_check)
-        # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
-
-        
-
-        # Extend disparities in the LiDAR scan data
-        # ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
-
+        # Find disparities and modify ranges
         disparities, ranges = self.convolutional_disp_extender2(
-            ranges, self.disparity_check, scan.angle_increment
+            ranges, self.disparity_check
             )
         
         # Publish the disparity points to the '/disparities' topic
@@ -130,70 +127,8 @@ class disparityExtender(Node):
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
-
-    def find_disparities_diff(self, ranges, check_value):
-        """
-        Identifies disparities in the LiDAR scan data.
-
-        A disparity is defined as a significant jump in range values between consecutive points.
-        This function iterates through the range values and records the indices where the jump
-        exceeds the specified check value.
-
-        Parameters:
-            ranges (np.array): Array of range values from the LiDAR scan.
-            check_value (float): The minimum difference between consecutive range values to be considered a disparity.
-
-        Returns:
-            list: A list of indices where disparities are detected.
-        """
-        valid = (ranges[:-1] > 0) & (ranges[1:] > 0)  # Exclude comparisons with invalid (0) ranges
-        diffs = np.diff(ranges)
-
-        disparities = np.where((np.abs(diffs) >= check_value) & valid)[0]
-
-        # Assign i and i+1 depending on direction
-        results = []
-        for i in disparities:
-            if diffs[i] > 0:
-                results.append(i)    # right is farther, left is closer
-            else:
-                results.append(i + 1)  # left is farther, right is closer
-        return results
     
-    def convolutional_disp_extender(self, ranges, check_value, angle_increment):
-        # The disparity is defined as the the JUMP in the range values >= check_value
-
-        # Apply convolution with an edge detection kernel
-        edge_filter = np.array([-1, 1])
-        convolved = np.convolve(ranges, edge_filter, mode='same')
-
-        # Find indices where the absolute value of the convolution exceeds the check_value
-        # disparity_indices = np.where(np.abs(convolved) >= check_value)[0]
-        left_disparities = np.where(convolved < -check_value)[0]
-        right_disparities = np.where(convolved > check_value)[0] - 1
-
-        num_pts_rewrite_left = np.array( 
-            np.arctan(self.extension_distance / ranges[left_disparities]) # Angle to extend
-            / angle_increment
-            ).astype(int)
-        num_pts_rewrite_right = np.array( 
-            np.arctan(self.extension_distance / ranges[right_disparities]) # Angle to extend
-            / angle_increment
-            ).astype(int)
-        
-        extended_ranges = ranges
-        for i in np.arange(0, len(left_disparities)):
-            extended_ranges[
-                (left_disparities[i] - num_pts_rewrite_left[i]) : left_disparities[i]
-                ] = ranges[left_disparities[i]] 
-        for j in np.arange(0, right_disparities):
-            extended_ranges[
-                right_disparities[j] : (right_disparities[j] + num_pts_rewrite_right[i])
-            ] = ranges[right_disparities[j]]
-
-        return extended_ranges
-    
-    def convolutional_disp_extender2(self, ranges, check_value, angle_increment):
+    def convolutional_disp_extender2(self, ranges, check_value):
         # Edge detection kernel
         edge_filter = np.array([-1, 1])
         # convolved = np.zeros(self._scan_params['num_points'])
@@ -237,28 +172,6 @@ class disparityExtender(Node):
             extended_ranges[start:end][mask] = ranges[start]
 
         return disparities, extended_ranges
-
-    def extend_disparities(self, ranges, disparities, angle_increment):
-        for i in disparities:
-
-            disparity_distance = np.min([ranges[i-1], ranges[i]])
-            angle_to_extend = np.arctan(self.extension_distance / disparity_distance)
-            points_to_rewrite = int(angle_to_extend / angle_increment ) 
-
-            if i - points_to_rewrite < 0:
-                for j in range(i + points_to_rewrite):
-                    if ranges[j] > ranges[i]:
-                        ranges[j] = disparity_distance
-            elif i + points_to_rewrite > len(ranges):
-                for j in range(i - points_to_rewrite, len(ranges)):
-                    if ranges[j] > ranges[i]:
-                        ranges[j] = disparity_distance
-            else:
-                for j in range(i - points_to_rewrite, i + points_to_rewrite):
-                    if ranges[j] > ranges[i]:
-                        ranges[j] = disparity_distance
-            # print(ranges[i-points_to_rewrite:i+points_to_rewrite])
-        return ranges
     
     def find_deepest_gap(self, ranges):
         """
@@ -290,7 +203,6 @@ class disparityExtender(Node):
             ) 
         ).astype(int)
     
-
     def publish_drive_command(self, scan, ranges, deep_index):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.
@@ -325,13 +237,15 @@ class disparityExtender(Node):
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-        forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
 
+        # # Parametrized Logistic Curve Speed Profile
+        # Operates as a function of:
+        forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
+        # Parameters
         speed_max = 6.0
         speed_min = 1.0
         accel = 1.0
         a_center = 3.0
-        
         speed = (
                 (speed_max - speed_min) 
                 / (1 + np.exp(- accel * (forward_distance - a_center))) 
@@ -367,18 +281,18 @@ class disparityExtender(Node):
             disparities (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
-
         if not self.enable_visualization:
             return
         
         disparities_values = np.zeros(len(ranges))
         disparities_values[disparities] = ranges[disparities]
 
-        disparities_values = np.flip(np.roll(disparities_values, -len(disparities_values)//2)).tolist()
+        disparities_values = np.flip(np.roll(
+            disparities_values, -len(disparities_values)//2)).tolist()
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
-        modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
+        modified_scan.header.frame_id = 'laser' 
         modified_scan.angle_min = raw_scan_data.angle_min
         modified_scan.angle_max = raw_scan_data.angle_max
         modified_scan.angle_increment = raw_scan_data.angle_increment
@@ -405,7 +319,7 @@ class disparityExtender(Node):
        
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
-        modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
+        modified_scan.header.frame_id = 'laser'
         modified_scan.angle_min = raw_scan_data.angle_min
         modified_scan.angle_max = raw_scan_data.angle_max
         modified_scan.angle_increment = raw_scan_data.angle_increment
