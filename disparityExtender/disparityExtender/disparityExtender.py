@@ -21,9 +21,9 @@ class disparityExtender(Node):
 
         # Wheelbase of the car (in meters)
         self.wheelbase = 0.325
-        so
+
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.175 
+        self.extension_distance = 0.185 
 
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.85   
@@ -60,19 +60,21 @@ class disparityExtender(Node):
         # self.occlude_ranges(ranges, 180.0, 180.0
 
         # Find disparities in the LiDAR scan data
-        disparities = self.find_disparities_diff(ranges, self.disparity_check)
+        # disparities = self.find_disparities_diff(ranges, self.disparity_check)
         # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
 
         # Publish the disparity points to the '/disparities' topic
-        self.publish_disparity_scan(ranges, disparities, scan)
+        # self.publish_disparity_scan(ranges, disparities, scan)
 
         # Extend disparities in the LiDAR scan data
-        ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
+        # ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
+
+        ranges = self.convolutional_disp_extender(ranges, self.extension_distance, scan.angle_increment)
 
         # Find the index of the deepest point in the LiDAR scan data
-        deep_index = self.find_deepest_gap(ranges)
+        target_index = self.find_deepest_gap(ranges)
 
-        self.publish_drive_command(scan, ranges, deep_index)
+        self.publish_drive_command(scan, ranges, target_index)
         self.publish_laser_scan(ranges, scan)
 
     # Helper functions
