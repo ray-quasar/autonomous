@@ -138,6 +138,38 @@ class disparityExtender(Node):
             ] = ranges[right_disparities]
 
         return extended_ranges
+    
+    def convolutional_disp_extender2(self, ranges, check_value, angle_increment):
+        # Edge detection kernel
+        edge_filter = np.array([-1, 1])
+        convolved = np.convolve(ranges, edge_filter, mode='same')
+
+        # Detect left and right disparities
+        left_disparities = np.where(convolved < -check_value)[0]
+        right_disparities = np.where(convolved > check_value)[0]
+
+        # Compute number of points to rewrite (vectorized)
+        def compute_extension_pts(disparities):
+            angles = np.arctan(self.extension_distance / ranges[disparities])
+            return np.clip((angles / angle_increment).astype(int), 0, len(ranges))
+
+        num_pts_left = compute_extension_pts(left_disparities)
+        num_pts_right = compute_extension_pts(right_disparities)
+
+        # Initialize output
+        extended_ranges = np.copy(ranges)
+
+        # Vectorized left extension
+        left_starts = np.clip(left_disparities - num_pts_left, 0, len(ranges))
+        for start, end in zip(left_starts, left_disparities):
+            extended_ranges[start:end] = ranges[end]
+
+        # Vectorized right extension
+        right_ends = np.clip(right_disparities + num_pts_right, 0, len(ranges))
+        for start, end in zip(right_disparities, right_ends):
+            extended_ranges[start:end] = ranges[start]
+
+        return extended_ranges
 
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
