@@ -9,67 +9,119 @@ from scipy.ndimage import convolve1d
 class disparityExtender(Node):
     def __init__(self):
         super().__init__('disparityExtender')
+
+        self.get_logger().info(
+            f"""
+            Thank you for choosing Ray-Quasar for your racing needs.
+            Initializing disparityExtender.
+            """
+        )
+
+        # Debug and visualization flags
+        self.enable_logging = self.declare_parameter('enable_logging', True).value
+        self.enable_visualization = self.declare_parameter('enable_visualization', True).value
+        self.get_logger().info(
+            f"""
+            Logging enabled: {self.enable_logging}
+            Visualization enabled: {self.enable_visualization}
+            """
+        )
         
         # Subscribe to LiDAR scans (assumed on '/scan')
         self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
-        # Publisher for AckermannDriveStamped messages on '/drive'
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
-        # Publisher for disparity identifier scan data
-        self.disparity_pub = self.create_publisher(LaserScan, '/disparity', 10)
-        # Publisher for modified range data
-        self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
-
-        # Wheelbase of the car (in meters)
-        self.wheelbase = 0.325
-
-        # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.185 
-
-        # Threshold for detecting disparities (in meters)
-        self.disparity_check = 0.85   
-
+        self.get_logger().info(
+            f"Subscribed to LiDAR scan data on '/scan'."
+        )
+        # Cache for scan parameters
+        self._scan_params = None
         # Lookahead distance (in meters)
         self.lookahead_distance = 8.0 
 
+        # Publisher for AckermannDriveStamped messages on '/drive'
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        self.get_logger().info(
+            f"Created publisher for AckermannDriveMsgs on '/drive'."
+        )
+        # Wheelbase of the car (in meters)
+        self.wheelbase = 0.325
         # Maximum steering angle (radians)
-        self.max_steering_angle = 0.34     
+        self.max_steering_angle = 0.34 
 
-    # Main LiDAR scan processing function
+        # Publisher for disparity identifier scan data
+        self.disparity_pub = self.create_publisher(LaserScan, '/disparity', 10)
+        self.get_logger().info(
+            f"Created publisher for disparity visualizer on '/disparity'."
+        )
+        # Threshold for detecting disparities (in meters)
+        self.disparity_check = 0.85
+
+        # Publisher for modified range data
+        self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
+        self.get_logger().info(
+            f"Created publisher for modified range visualizer on '/ext_scan'."
+        )
+        # Threshold for extending disparities (in meters)
+        self.extension_distance = 0.185
+
+        # TODO: Initialize point rewrite lookup table
+
     def lidar_callback(self, scan):
         """
         Callback function for processing incoming LiDAR scan data.
         """
-        # Convert raw scan data to a NumPy array
-        ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
+        # # Convert raw scan data to a NumPy array
+        # ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
         
-        # Using averaging filter to smooth the data with wrap-around
-        # ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
+        # # Using averaging filter to smooth the data with wrap-around
+        # # ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
 
-        # Rotate the scan data about z-axis
-        ranges = np.roll(ranges, len(ranges)//2)
-        # Rotate the scan data about x-axis
-        ranges = np.flip(ranges)
+        # # Rotate the scan data about z-axis
+        # ranges = np.roll(ranges, len(ranges)//2)
+        # # Rotate the scan data about x-axis
+        # ranges = np.flip(ranges)
 
-        # Preprocess the scan data
-        ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
-        ranges = np.nan_to_num(ranges, nan=0.0)
+        # # Preprocess the scan data
+        # ranges = np.clip(ranges, scan.range_min, self.lookahead_distance)
+        # ranges = np.nan_to_num(ranges, nan=0.0)
 
-        # Occlude the ranges to a specified FOV (Field of View)
-        ranges[:len(ranges)//4] = 0.0
-        ranges[3*len(ranges)//4:] = 0.0
-        # self.occlude_ranges(ranges, 180.0, 180.0
+        # Cache parameters on first scan
+        if self._scan_params is None:
+            self._scan_params = {
+                'angle_min': scan.angle_min,
+                'angle_max': scan.angle_max,
+                'angle_increment': scan.angle_increment,
+                'range_min': scan.range_min,
+                'range_max': scan.range_max,
+                'num_points': len(scan.ranges)
+            }
+
+        ranges = np.flip(np.roll(
+            # convolve1d(
+                np.nan_to_num(np.clip(
+                    np.array(scan.ranges), 
+                scan.range_min, self.lookahead_distance), nan=0.0), 
+            # np.ones(3)/3, mode='wrap'),
+        self._scan_params['num_points']//2))
 
         # Find disparities in the LiDAR scan data
         # disparities = self.find_disparities_diff(ranges, self.disparity_check)
         # disparities = self.find_disparities_convolution(ranges, self.disparity_check)
 
-        # Publish the disparity points to the '/disparities' topic
-        # self.publish_disparity_scan(ranges, disparities, scan)
+        
 
         # Extend disparities in the LiDAR scan data
         # ranges = self.extend_disparities(ranges, disparities, scan.angle_increment)
 
-        ranges = self.convolutional_disp_extender(ranges, self.extension_distance, scan.angle_increment)
+        disparities, ranges = self.convolutional_disp_extender2(
+            ranges, self.disparity_check, scan.angle_increment
+            )
+        
+        # Publish the disparity points to the '/disparities' topic
+        self.publish_disparity_scan(ranges, disparities, scan)
+
+        # Occlude the ranges to a specified FOV (Field of View)
+        ranges[:self._scan_params['num_points']//4] = 0.0
+        ranges[-self._scan_params['num_points']//4:] = 0.0
 
         # Find the index of the deepest point in the LiDAR scan data
         target_index = self.find_deepest_gap(ranges)
@@ -130,30 +182,43 @@ class disparityExtender(Node):
             ).astype(int)
         
         extended_ranges = ranges
-        for i in left_disparities:
+        for i in np.arange(0, len(left_disparities)):
             extended_ranges[
                 (left_disparities[i] - num_pts_rewrite_left[i]) : left_disparities[i]
                 ] = ranges[left_disparities[i]] 
-        for j in right_disparities:
+        for j in np.arange(0, right_disparities):
             extended_ranges[
                 right_disparities[j] : (right_disparities[j] + num_pts_rewrite_right[i])
-            ] = ranges[right_disparities]
+            ] = ranges[right_disparities[j]]
 
         return extended_ranges
     
     def convolutional_disp_extender2(self, ranges, check_value, angle_increment):
         # Edge detection kernel
         edge_filter = np.array([-1, 1])
-        convolved = np.convolve(ranges, edge_filter, mode='same')
+        # convolved = np.zeros(self._scan_params['num_points'])
+        convolved = convolve1d(ranges, edge_filter, mode='wrap')
 
         # Detect left and right disparities
-        left_disparities = np.where(convolved < -check_value)[0]
-        right_disparities = np.where(convolved > check_value)[0]
+        right_disparities = np.clip(
+            np.where(
+                convolved < -check_value
+            )[0], self._scan_params['num_points']//4, 3*self._scan_params['num_points']//4
+        )
+        # right_disparities = [0]
+        left_disparities = np.clip(
+            np.where(
+                convolved > check_value
+            )[0], self._scan_params['num_points']//4, 3*self._scan_params['num_points']//4
+        ) 
+        left_disparities = [0]
+
+        disparities = np.concatenate((left_disparities,right_disparities))
 
         # Compute number of points to rewrite (vectorized)
         def compute_extension_pts(disparities):
             angles = np.arctan(self.extension_distance / ranges[disparities])
-            return np.clip((angles / angle_increment).astype(int), 0, len(ranges))
+            return np.clip((angles / self._scan_params['angle_increment']).astype(int), 0, self._scan_params['num_points'])
 
         num_pts_left = compute_extension_pts(left_disparities)
         num_pts_right = compute_extension_pts(right_disparities)
@@ -162,16 +227,16 @@ class disparityExtender(Node):
         extended_ranges = np.copy(ranges)
 
         # Vectorized left extension
-        left_starts = np.clip(left_disparities - num_pts_left, 0, len(ranges))
+        left_starts = np.clip(left_disparities - num_pts_left, 0, self._scan_params['num_points'])
         for start, end in zip(left_starts, left_disparities):
             extended_ranges[start:end] = ranges[end]
 
         # Vectorized right extension
-        right_ends = np.clip(right_disparities + num_pts_right, 0, len(ranges))
+        right_ends = np.clip(right_disparities + num_pts_right, 0, self._scan_params['num_points'])
         for start, end in zip(right_disparities, right_ends):
             extended_ranges[start:end] = ranges[start]
 
-        return extended_ranges
+        return disparities, extended_ranges
 
     def extend_disparities(self, ranges, disparities, angle_increment):
         for i in disparities:
@@ -219,7 +284,11 @@ class disparityExtender(Node):
         # middle = (left + right) // 2
         # return middle
 
-        return np.average( np.where(ranges > (0.9 * np.max(ranges))) ).astype(int)
+        return np.average( 
+            np.where(
+                ranges > (0.9 * np.max(ranges))
+            ) 
+        ).astype(int)
     
 
     def publish_drive_command(self, scan, ranges, deep_index):
@@ -280,13 +349,15 @@ class disparityExtender(Node):
         drive_msg.drive.speed = speed
         
         self.drive_pub.publish(drive_msg)
-        self.get_logger().info(
-            f"""
-            Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
-            Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
-            Speed: {speed:.2f} m/s
-            """
-        )
+
+        if self.enable_logging:
+            self.get_logger().info(
+                f"""
+                Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+                Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+                Speed: {speed:.2f} m/s
+                """
+            )
 
     def publish_disparity_scan(self, ranges, disparities, raw_scan_data):
         """
@@ -296,12 +367,14 @@ class disparityExtender(Node):
             disparities (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
+
+        if not self.enable_visualization:
+            return
+        
         disparities_values = np.zeros(len(ranges))
         disparities_values[disparities] = ranges[disparities]
 
-        disparities_values = np.flip(np.roll(disparities_values, -len(disparities_values)//2))
-
-        disparities_values = disparities_values.tolist()
+        disparities_values = np.flip(np.roll(disparities_values, -len(disparities_values)//2)).tolist()
         
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
@@ -325,15 +398,11 @@ class disparityExtender(Node):
             ranges (np.array): Modified range data.
             scan_data (LaserScan): Original LiDAR scan data.
         """
-        # Experimental: Fixing position of the scan data in RViz
-        # Undo the rotation of the scan data about the z-axis
-        ranges = np.roll(ranges, -len(ranges)//2)
-        # Undo the rotation of the scan data about the x-axis
-        ranges = np.flip(ranges)
+        if not self.enable_visualization:
+            return
 
-        # ROS 2 requires the ranges to be a list, not a NumPy array
-        ranges = ranges.tolist()
-        
+        ranges = np.flip(np.roll(ranges, -len(ranges)//2)).tolist()
+       
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
         modified_scan.header.frame_id = 'laser' # The modified scan data is published in the laser frame
