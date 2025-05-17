@@ -3,7 +3,7 @@ import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
-from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool
 from scipy.ndimage import convolve1d
 
 class disparityExtender(Node):
@@ -12,14 +12,11 @@ class disparityExtender(Node):
 
         self.get_logger().info(
             r"""
-__________                          ________                                          
-\______   \_____    ___.__.         \_____  \   __ __ _____     ___________   _______ 
- |       _/\__  \  <   |  |  ______  /  / \  \ |  |  \\__  \   /  ___/\__  \  \_  __ \
- |    |   \ / __ \_ \___  | /_____/ /   \_/.  \|  |  / / __ \_ \___ \  / __ \_ |  | \/
- |____|_  /(____  / / ____|         \_____\ \_/|____/ (____  //____  >(____  / |__|   
-        \/      \/  \/                     \__>            \/      \/      \/         
-                            
-                            Initializing disparityExtender.
+  ______ _______ __   __      _____  _     _ _______ _______ _______  ______
+ |_____/ |_____|   \_/   ___ |   __| |     | |_____| |______ |_____| |_____/
+ |    \_ |     |    |        |____\| |_____| |     | ______| |     | |    \_
+                                                                            
+                    Initializing disparityExtender...
             """
         )
 
@@ -35,59 +32,66 @@ Visualization enabled: {self.enable_visualization}
             """
         )
         
-        # Subscribe to LiDAR scans (assumed on '/scan')
-        self.lidar_sub = self.create_subscription(LaserScan, '/scan', self.lidar_callback, 10)
+        # # Subscribe to LiDAR scans (assumed on '/scan')
+        self.lidar_sub = self.create_subscription(
+            LaserScan, '/scan', self.lidar_callback, 10
+        )
         self.get_logger().info(
-            f"Subscribed to LiDAR scan data on '/scan'."
+            f" \n\rSubscribed to LiDAR scan data on '/scan'."
         )
         # Cache for scan parameters
         self._scan_params = None
         # Lookahead distance (in meters)
         self.lookahead_distance = 8.0 
 
-        # Publisher for AckermannDriveStamped messages on '/drive'
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, '/drive', 10)
+        # # Publisher for AckermannDriveStamped messages on '/drive'
+        self.drive_pub = self.create_publisher(
+            AckermannDriveStamped, '/drive', 10
+        )
         self.get_logger().info(
-            f"Created publisher for AckermannDriveMsgs on '/drive'."
+            f"\n\rCreated publisher for AckermannDriveMsgs on '/drive'."
         )
         # Wheelbase of the car (in meters)
         self.wheelbase = 0.325
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34 
 
-        # Publisher for disparity identifier scan data
-        self.disparity_pub = self.create_publisher(LaserScan, '/disparity', 10)
+        # # Publisher for disparity identifier scan data
+        self.disparity_pub = self.create_publisher(
+            LaserScan, '/disparity', 10
+        )
         self.get_logger().info(
-            f"Created publisher for disparity visualizer on '/disparity'."
+            f"\n\rCreated publisher for disparity visualizer on '/disparity'."
         )
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.85
 
-        # Publisher for modified range data
-        self.ext_scan_publisher = self.create_publisher(LaserScan, '/ext_scan', 10)
+        # # Publisher for modified range data
+        self.ext_scan_publisher = self.create_publisher(
+            LaserScan, '/ext_scan', 10
+        )
         self.get_logger().info(
-            f"Created publisher for modified range visualizer on '/ext_scan'."
+            f"\n\rCreated publisher for modified range visualizer on '/ext_scan'."
         )
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.185
 
+        # # Navigation control subscriber
+        self.nav_control_sub = self.create_subscription(
+            Bool, 'nav_control', self.nav_control_callback, 10
+        )
+        self.get_logger().info(
+            f"\n\rSubscribed to navigation control on '/nav_control'."
+        )
+        self.nav_control_state = False
+
         # TODO: Initialize point rewrite lookup table
+        # TODO: Add subscriber to joystick to play/pause drive message creation
 
     def lidar_callback(self, scan):
         """
         Callback function for processing incoming LiDAR scan data.
         """
-        # # Convert raw scan data to a NumPy array
-        # ranges = np.array(scan.ranges)  # Ignore the angle_min, angle_increment, etc.
-        
-        # # Using averaging filter to smooth the data with wrap-around
-        # # ranges = convolve1d(ranges, np.ones(3)/3, mode='wrap')
-
-        # # Rotate the scan data about z-axis
-        # ranges = np.roll(ranges, len(ranges)//2)
-        # # Rotate the scan data about x-axis
-        # ranges = np.flip(ranges
-
         # Cache parameters on first scan
         if self._scan_params is None:
             self._scan_params = {
@@ -116,17 +120,17 @@ Visualization enabled: {self.enable_visualization}
         # Publish the disparity points to the '/disparities' topic
         self.publish_disparity_scan(ranges, disparities, scan)
 
-        # Occlude the ranges to a specified FOV (Field of View)
+        # Occlude the ranges to a 180-degree FOV
         ranges[:self._scan_params['num_points']//4] = 0.0
         ranges[-self._scan_params['num_points']//4:] = 0.0
 
-        # Find the index of the deepest point in the LiDAR scan data
+        # Find the index of the deepest cluster in the LiDAR scan data
         target_index = self.find_deepest_gap(ranges)
 
         self.publish_drive_command(scan, ranges, target_index)
         self.publish_laser_scan(ranges, scan)
 
-    # Helper functions
+    # # Helper functions
     
     def convolutional_disp_extender2(self, ranges, check_value):
         # Edge detection kernel
@@ -137,13 +141,13 @@ Visualization enabled: {self.enable_visualization}
         # Detect left and right disparities
         right_disparities = np.where(
             (convolved < -check_value) & 
-            (np.arange(len(ranges)) > self._scan_params['num_points']//4) &
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4)
+            (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) # type: ignore
         )[0]
         left_disparities = np.where(
             (convolved > check_value) &
-            (np.arange(len(ranges)) > self._scan_params['num_points']//4) &
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4)
+            (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) # type: ignore
         )[0] 
 
         disparities = np.concatenate((left_disparities,right_disparities))
@@ -151,7 +155,7 @@ Visualization enabled: {self.enable_visualization}
         # Compute number of points to rewrite (vectorized)
         def compute_extension_pts(disparities):
             angles = np.arctan(self.extension_distance / ranges[disparities])
-            return np.clip((angles / self._scan_params['angle_increment']).astype(int), 0, self._scan_params['num_points'])
+            return np.clip((angles / self._scan_params['angle_increment']).astype(int), 0, self._scan_params['num_points']) # type: ignore
 
         num_pts_left = compute_extension_pts(left_disparities)
         num_pts_right = compute_extension_pts(right_disparities)
@@ -160,13 +164,13 @@ Visualization enabled: {self.enable_visualization}
         extended_ranges = np.copy(ranges)
 
         # Vectorized left extension
-        left_starts = np.clip(left_disparities - num_pts_left, 0, self._scan_params['num_points'])
+        left_starts = np.clip(left_disparities - num_pts_left, 0, self._scan_params['num_points'])  # type: ignore
         for start, end in zip(left_starts, left_disparities):
             mask = extended_ranges[start:end] > ranges[end]
             extended_ranges[start:end][mask] = ranges[end]
 
         # Vectorized right extension
-        right_ends = np.clip(right_disparities + num_pts_right, 0, self._scan_params['num_points'])
+        right_ends = np.clip(right_disparities + num_pts_right, 0, self._scan_params['num_points']) # type: ignore
         for start, end in zip(right_disparities, right_ends):
             mask = extended_ranges[start:end] > ranges[start]
             extended_ranges[start:end][mask] = ranges[start]
@@ -203,29 +207,25 @@ Visualization enabled: {self.enable_visualization}
             ) 
         ).astype(int)
     
-    def publish_drive_command(self, scan, ranges, deep_index):
+    def publish_drive_command(self, ranges, deep_index):
         """
-        Publish an AckermannDriveStamped command message to the '/drive' topic.
-        Parameters:
-
+        Publish an AckermannDriveStamped command message to the '/drive' topic.d
         """   
-        forward_distance = ranges[len(ranges)//2]   # The distance directly in front of the car
+        # # Ackermann Steering Angle Calculation:
+        """
+        - Based on curvature of the path and the wheelbase of the car
+        - The formula for the steering angle is:
+              steering_angle = atan(wheelbase * curvature)
+              curvature = 2 * target_distance * sin(target_angle) / target_distance^2
+         - target_distance cancels out of the numerator, the calculation is simplified to:
+              steering_angle = atan(wheelbase * 2 * sin(target_angle) / target_distance)
+        - The width of the track constrains target_distance*cos(target_angle) to <= forward_distance
+        - The updated value of the hypotenuse is:
+             hypotenuse = forward_distance / cos(target_angle)
+        """
+        forward_distance = ranges[self._scan_params['num_points']//2]   # type: ignore # The distance directly in front of the car
         target_distance = ranges[deep_index]  # The distance to the target point
-        target_angle = scan.angle_min + deep_index * scan.angle_increment  # The angle to the target point
-
-
-        # Ackermann Steering Angle Calculation:
-        # - Based on curvature of the path and the wheelbase of the car
-        # - The formula for the steering angle is:
-        #       steering_angle = atan(wheelbase * curvature)
-        #       curvature = 2 * target_distance * sin(target_angle) / target_distance^2
-        #  - target_distance cancels out of the numerator, the calculation is simplified to:
-        #       steering_angle = atan(wheelbase * 2 * sin(target_angle) / target_distance)
-        
-        # - The width of the track constrains target_distance*cos(target_angle) to <= forward_distance
-        # - The updated value of the hypotenuse is:
-        #      hypotenuse = forward_distance / cos(target_angle)
-
+        target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance / np.cos(target_angle)
         if new_target_distance < target_distance:
             target_distance = new_target_distance
@@ -237,7 +237,6 @@ Visualization enabled: {self.enable_visualization}
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
         
-
         # # Parametrized Logistic Curve Speed Profile
         # Operates as a function of:
         forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
@@ -252,19 +251,24 @@ Visualization enabled: {self.enable_visualization}
                 + speed_min
         )
 
-        # Test mode
-        speed = 0.0
-
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
         
         drive_msg.drive.steering_angle = bounded_steering_angle
         drive_msg.drive.speed = speed
+
+        # TEST MODE: SPEED ENABLE
+        if not self.enable_speed:
+            drive_msg.drive.speed = 0.0
         
         self.drive_pub.publish(drive_msg)
 
         if self.enable_logging:
+            if not self.enable_speed:
+                self.get_logger().info(
+                    f"              --- TEST MODE: SPEED DISABLED ---"
+                )
             self.get_logger().info(
                 f"""
                 Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
@@ -315,7 +319,7 @@ Visualization enabled: {self.enable_visualization}
         if not self.enable_visualization:
             return
 
-        ranges = np.flip(np.roll(ranges, -len(ranges)//2)).tolist()
+        ranges = np.flip(np.roll(ranges, -self._scan_params['num_points']//2)).tolist() # type: ignore
        
         modified_scan = LaserScan()
         modified_scan.header.stamp = raw_scan_data.header.stamp
@@ -330,6 +334,14 @@ Visualization enabled: {self.enable_visualization}
         modified_scan.intensities = raw_scan_data.intensities
 
         self.ext_scan_publisher.publish(modified_scan)
+
+    def nav_control_callback(self, msg):
+        """Toggle navigation control state on True messages"""
+        if msg.data:
+            self.enable_speed = not self.enable_speed
+            self.get_logger().info(
+                f"Navigation {'enabled' if self.enable_speed else 'disabled'}"
+            )
 
 def main(args=None):
     rclpy.init(args=args)
