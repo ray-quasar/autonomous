@@ -396,7 +396,12 @@ Speed: {speed:.2f} m/s
 def main(args=None):
     rclpy.init(args=args)
     node = disparityExtender()
-    rclpy.spin(node)
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    
     node.destroy_node()
     rclpy.shutdown()
 
