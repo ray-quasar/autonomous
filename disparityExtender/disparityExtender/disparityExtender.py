@@ -86,7 +86,11 @@ Launching with parameters:
         )
         
         self.get_logger().info(
-            f"\n\rInitialization complete."
+            f"\n\rInitialization complete. \n \
+                \n\r Press Y to toggle visualization. \
+                \n\r Press X to toggle logger. \
+                \n\r Press B to activate emergency brake. \n \
+                \n\r Press A to start car..."
         )
 
         # TODO: Initialize point rewrite lookup table
@@ -137,6 +141,9 @@ Launching with parameters:
                 'range_max': scan.range_max,
                 'num_points': len(scan.ranges)
             }
+            self.get_logger().info(
+                f"\n\r Cached scan parameters."
+            )
         
         # Preprocess the scan data
         ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
