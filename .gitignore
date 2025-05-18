@@ -8,3 +8,17 @@
 *.bak
 .DS_Store
 Thumbs.db
+
+# Ignore build and runtime files
+build/
+devel/
+install/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.so
+*.o
+*.a

@@ -3,7 +3,7 @@ import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
-from std_msgs.msg import Bool
+from std_msgs.msg import UInt8, Float64
 from scipy.ndimage import convolve1d
 
 class disparityExtender(Node):
@@ -12,32 +12,39 @@ class disparityExtender(Node):
 
         self.get_logger().info(
             r"""
-  ______ _______ __   __      _____  _     _ _______ _______ _______  ______
- |_____/ |_____|   \_/   ___ |   __| |     | |_____| |______ |_____| |_____/
- |    \_ |     |    |        |____\| |_____| |     | ______| |     | |    \_
-                                                                            
-                    Initializing disparityExtender...
+____ ____ _   _    ____ _  _ ____ ____ ____ ____ 
+|__/ |__|  \_/  __ |  | |  | |__| [__  |__| |__/ 
+|  \ |  |   |      |_\| |__| |  | ___] |  | |  \ 
+                                                                                                                            
+        Initializing disparityExtender...
             """
         )
 
         # Debug and visualization flags
-        self.enable_speed = self.declare_parameter('enable_speed', True).value
-        self.enable_logging = self.declare_parameter('enable_logging', True).value
+        self.enable_speed = self.declare_parameter('enable_speed', False).value
+        self.enable_logging = self.declare_parameter('enable_logging', False).value
         self.enable_visualization = self.declare_parameter('enable_visualization', True).value
         self.get_logger().info(
             f"""
-Speed enabled: {self.enable_speed}
-Logging enabled: {self.enable_logging}
-Visualization enabled: {self.enable_visualization}
+Launching with parameters:
+    - Motor {'enabled' if self.enable_speed else 'disabled'}
+    - Logging {'enabled' if self.enable_logging else 'disabled'}
+    - Visualization {'enabled' if self.enable_visualization else 'disabled'}
             """
         )
-        
+        self.get_logger().info(
+            f"\n\rSubscribing to LiDAR scan data on '/scan'. \
+                \n\rCreating publisher for AckermannDriveMsgs on '/drive'. \
+                \n\rCreating publisher for EMERGENCY STOP on '/commands/motor/brake'. \
+                \n\rCreating publisher for disparity visualizer on '/disparity'. \
+                \n\rCreating publisher for modified range visualizer on '/ext_scan'. \
+                \n\rSubscribing to navigation control on '/nav_control'. \
+            "
+        )
+
         # # Subscribe to LiDAR scans (assumed on '/scan')
         self.lidar_sub = self.create_subscription(
             LaserScan, '/scan', self.lidar_callback, 10
-        )
-        self.get_logger().info(
-            f" \n\rSubscribed to LiDAR scan data on '/scan'."
         )
         # Cache for scan parameters
         self._scan_params = None
@@ -48,20 +55,20 @@ Visualization enabled: {self.enable_visualization}
         self.drive_pub = self.create_publisher(
             AckermannDriveStamped, '/drive', 10
         )
-        self.get_logger().info(
-            f"\n\rCreated publisher for AckermannDriveMsgs on '/drive'."
-        )
         # Wheelbase of the car (in meters)
         self.wheelbase = 0.325
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34 
 
+        # # Publisher for E-stop
+        self.emergency_stop_pub = self.create_publisher(
+            Float64, '/commands/motor/brake', 10
+        )
+        self.brake_counter = 0
+
         # # Publisher for disparity identifier scan data
         self.disparity_pub = self.create_publisher(
             LaserScan, '/disparity', 10
-        )
-        self.get_logger().info(
-            f"\n\rCreated publisher for disparity visualizer on '/disparity'."
         )
         # Threshold for detecting disparities (in meters)
         self.disparity_check = 0.85
@@ -70,23 +77,51 @@ Visualization enabled: {self.enable_visualization}
         self.ext_scan_publisher = self.create_publisher(
             LaserScan, '/ext_scan', 10
         )
-        self.get_logger().info(
-            f"\n\rCreated publisher for modified range visualizer on '/ext_scan'."
-        )
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.185
 
         # # Navigation control subscriber
         self.nav_control_sub = self.create_subscription(
-            Bool, 'nav_control', self.nav_control_callback, 10
+            UInt8, 'nav_control', self.nav_control_callback, 10
         )
+        
         self.get_logger().info(
-            f"\n\rSubscribed to navigation control on '/nav_control'."
+            f"\n\rInitialization complete."
         )
-        self.nav_control_state = False
 
         # TODO: Initialize point rewrite lookup table
-        # TODO: Add subscriber to joystick to play/pause drive message creation
+        # TODO: Do not start program until controller confirmation
+
+    def nav_control_callback(self, msg):
+        """Toggle navigation control states on UInt8 messages"""
+        match msg.data:
+            case 1: # motor_toggle
+                self.enable_speed = not self.enable_speed
+                self.get_logger().info(
+                    f"\n\rMotor {'enabled' if self.enable_speed else 'disabled'}"
+                )
+                if not self.enable_speed:
+                    self.brake_counter = 2
+                    self.brake_timer = self.create_timer(0.1, self.brake_loop)
+            case 2: # e_stop
+                self.enable_speed = False
+                self.enable_logging = False
+                self.brake_counter = 50
+                self.get_logger().info(
+                    f"\n\r --- EMERGENCY STOP ACTIVATED. --- \
+                        \n\r --- APPLYING BRAKE FOR 5 SEC. --- "
+                )
+                self.brake_timer = self.create_timer(0.1, self.brake_loop)
+            case 3: # type: ignore # enable_logging
+                self.enable_logging = not self.enable_logging
+                self.get_logger().info(
+                    f"\n\rLogging {'enabled' if self.enable_logging else 'disabled'}"
+                )
+            case 4: # enable_visualization
+                self.enable_visualization = not self.enable_visualization
+                self.get_logger().info(
+                    f"\n\rVisualization {'enabled' if self.enable_visualization else 'disabled'}"
+                )
 
     def lidar_callback(self, scan):
         """
@@ -127,7 +162,7 @@ Visualization enabled: {self.enable_visualization}
         # Find the index of the deepest cluster in the LiDAR scan data
         target_index = self.find_deepest_gap(ranges)
 
-        self.publish_drive_command(scan, ranges, target_index)
+        self.publish_drive_command(ranges, target_index)
         self.publish_laser_scan(ranges, scan)
 
     # # Helper functions
@@ -259,22 +294,26 @@ Visualization enabled: {self.enable_visualization}
         drive_msg.drive.speed = speed
 
         # TEST MODE: SPEED ENABLE
-        if not self.enable_speed:
-            drive_msg.drive.speed = 0.0
-        
-        self.drive_pub.publish(drive_msg)
+        if self.enable_speed:
+            self.drive_pub.publish(drive_msg)
 
         if self.enable_logging:
             if not self.enable_speed:
                 self.get_logger().info(
-                    f"              --- TEST MODE: SPEED DISABLED ---"
-                )
-            self.get_logger().info(
-                f"""
-                Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
-                Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
-                Speed: {speed:.2f} m/s
+                    f"""
+        --- TEST MODE: SPEED DISABLED --- 
+Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+Speed: {speed:.2f} m/s
                 """
+                )
+            else:
+                self.get_logger().info(
+                    f"""
+Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
+Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+Speed: {speed:.2f} m/s
+                    """
             )
 
     def publish_disparity_scan(self, ranges, disparities, raw_scan_data):
@@ -288,7 +327,7 @@ Visualization enabled: {self.enable_visualization}
         if not self.enable_visualization:
             return
         
-        disparities_values = np.zeros(len(ranges))
+        disparities_values = np.zeros(self._scan_params['num_points']) # type: ignore
         disparities_values[disparities] = ranges[disparities]
 
         disparities_values = np.flip(np.roll(
@@ -335,13 +374,17 @@ Visualization enabled: {self.enable_visualization}
 
         self.ext_scan_publisher.publish(modified_scan)
 
-    def nav_control_callback(self, msg):
-        """Toggle navigation control state on True messages"""
-        if msg.data:
-            self.enable_speed = not self.enable_speed
-            self.get_logger().info(
-                f"Navigation {'enabled' if self.enable_speed else 'disabled'}"
-            )
+    def brake_loop(self):
+        """Send brake commands for 5 seconds"""
+        if self.brake_counter > 0:  # 50 * 0.1s = 5 seconds
+            brake_msg = Float64()
+            brake_msg.data = 20000.0
+            self.emergency_stop_pub.publish(brake_msg)
+            self.brake_counter -= 1
+        else:
+            self.brake_timer.cancel()  # Stop the timer
+            self.get_logger().info(" --- Brake released. --- ")
+
 
 def main(args=None):
     rclpy.init(args=args)
