@@ -147,29 +147,29 @@ Launching with parameters:
 
 
         
-        # # Preprocess the scan data
-        # ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
-        #     # convolve1d(
-        #         np.nan_to_num(np.clip(  # 2. Get rid of garbage values
-        #             np.array(scan.ranges),  # 1. Convert scan to NumPy array
-        #         scan.range_min, self.lookahead_distance), nan=0.0), 
-        #     # np.ones(3)/3, mode='wrap'),
-        # self._scan_params['num_points']//2))
+        # Preprocess the scan data
+        ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
+            # convolve1d(
+                np.nan_to_num(np.clip(  # 2. Get rid of garbage values
+                    np.array(scan.ranges),  # 1. Convert scan to NumPy array
+                scan.range_min, self.lookahead_distance), nan=0.0), 
+            # np.ones(3)/3, mode='wrap'),
+        self._scan_params['num_points']//2))
 
-        ranges = np.roll(np.flip(
-                    np.nan_to_num(  # 1. Convert scan to NumPy array and handle invalid values
-                        np.array(scan.ranges),
-                        nan=0.0
-                    )
-                ), self._scan_params['num_points']//2)
+        # ranges = np.roll(np.flip(
+        #             np.nan_to_num(  # 1. Convert scan to NumPy array and handle invalid values
+        #                 np.array(scan.ranges),
+        #                 nan=0.0
+        #             )
+        #         ), self._scan_params['num_points']//2)
         
-        forward_distance = max(ranges[self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25])   # type: ignore # The distance directly in front of the car
+        # forward_distance = max(ranges[self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25])   # type: ignore # The distance directly in front of the car
 
-        ranges = np.where(  # 2. Zero out values above lookahead_distance
-                    ranges > self.lookahead_distance,
-                    0.0,
-                    ranges
-                )
+        # ranges = np.where(  # 2. Zero out values above lookahead_distance
+        #             ranges > self.lookahead_distance,
+        #             0.0,
+        #             ranges
+        #         )
 
         
         # Find disparities and modify ranges
@@ -187,7 +187,7 @@ Launching with parameters:
         # Find the index of the deepest cluster in the LiDAR scan data
         target_index = self.find_deepest_gap(ranges)
 
-        self.publish_drive_command(ranges, target_index, forward_distance)
+        self.publish_drive_command(ranges, target_index) #, forward_distance)
         self.publish_laser_scan(ranges, scan)
 
     # # Helper functions
@@ -300,7 +300,7 @@ Launching with parameters:
         # #     ) 
         # # ).astype(int)
     
-    def publish_drive_command(self, ranges, deep_index, forward_distance):
+    def publish_drive_command(self, ranges, deep_index): #, forward_distance):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.d
         """   
@@ -316,7 +316,7 @@ Launching with parameters:
         - The updated value of the hypotenuse is:
              hypotenuse = forward_distance / cos(target_angle)
         """
-        
+        forward_distance = ranges[self._scan_params['num_points']//2] # type:ignore
         target_distance = ranges[deep_index]  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance / np.cos(target_angle)
