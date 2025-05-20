@@ -218,31 +218,67 @@ Launching with parameters:
             extended_ranges[start:end][mask] = ranges[start]
 
         return disparities, extended_ranges
+        ##Try 3
+    def find_deepest_gap(self, ranges: np.ndarray) -> int:
+        """
+        Finds the “deepest” gap in the scan by locating the max range
+        then taking the contiguous region ≥90% of that max, and
+        returning its midpoint index.
+        """
+        # 1. Find the index of the maximum
+        best = ranges.argmax()
+        thresh = ranges[best] * 0.9
+
+        # 2. Build a boolean mask of values ≥ threshold
+        mask = ranges >= thresh
+
+        # 3. Find where contiguous True‐runs start and end
+        #    diff=+1 marks the first True after a False, diff=-1 marks a False after a True
+        diff = np.diff(mask.astype(int))
+        starts = np.where(diff == 1)[0] + 1
+        ends   = np.where(diff == -1)[0]
+
+        # 4. Handle runs that go to the very beginning or end
+        if mask[0]:
+            starts = np.r_[0, starts]
+        if mask[-1]:
+            ends   = np.r_[ends, mask.size - 1]
+
+        # 5. Pick the run containing `best`
+        #    (there’s guaranteed to be exactly one)
+        idx = np.nonzero((starts <= best) & (ends >= best))[0][0]
+        left, right = starts[idx], ends[idx]
+
+        # 6. Return the midpoint
+        return (left + right) // 2
     
-    def find_deepest_gap(self, ranges):
-        """
-        Finds the "deepest" gap in the scan by first locating the index with the maximum
-        range value and then expanding left and right until the values drop below 90% of
-        that maximum.
+    # def find_deepest_gap(self, ranges):
+    #     """
+    #     Finds the "deepest" gap in the scan by first locating the index with the maximum
+    #     range value and then expanding left and right until the values drop below 90% of
+    #     that maximum.
 
-        Parameters:
-            ranges (np.array): Array of (extended) range values.
-        Returns:
-            Middle of the deepest gap.
-        """
-        # Find the index of the maximum range value
-        best_index = np.argmax(ranges)
-        # Expand left and right until the values drop below 90% of the maximum
-        threshold = 0.95 * ranges[best_index]
-        left = best_index
-        right = best_index
-        while left > 0 and ranges[left - 1] >= threshold:
-            left -= 1
-        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
-            right += 1
-        middle = (left + right) // 2
-        return middle
+    #     Parameters:
+    #         ranges (np.array): Array of (extended) range values.
+    #     Returns:
+    #         Middle of the deepest gap.
+    #     """
 
+        # #Try 1
+        # # Find the index of the maximum range value
+        # best_index = np.argmax(ranges)
+        # # Expand left and right until the values drop below 90% of the maximum
+        # threshold = 0.90 * ranges[best_index]
+        # left = best_index
+        # right = best_index
+        # while left > 0 and ranges[left - 1] >= threshold:
+        #     left -= 1
+        # while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+        #     right += 1
+        # middle = (left + right) // 2
+        # return middle
+
+        ##Try 2
         # return np.average( 
         #     np.where(
         #         ranges > (0.9 * np.max(ranges))
