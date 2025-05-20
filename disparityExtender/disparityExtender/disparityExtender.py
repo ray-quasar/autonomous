@@ -237,7 +237,7 @@ Launching with parameters:
 
         return disparities, extended_ranges
         ##Try 3
-    def find_deepest_gap(self, ranges: np.ndarray) -> int:
+    def find_deepest_gap(self, ranges):
         """
         Finds the “deepest” gap in the scan by locating the max range
         then taking the contiguous region ≥90% of that max, and
@@ -247,25 +247,23 @@ Launching with parameters:
         best = ranges.argmax()
         thresh = ranges[best] * 0.9
 
-        # 2. Build a boolean mask of values ≥ threshold
+        # 2. Mask all values ≥ threshold
         mask = ranges >= thresh
 
-        # 3. Find where contiguous True‐runs start and end
-        #    diff=+1 marks the first True after a False, diff=-1 marks a False after a True
+        # 3. Compute where runs of True start/end via diff
         diff = np.diff(mask.astype(int))
         starts = np.where(diff == 1)[0] + 1
         ends   = np.where(diff == -1)[0]
 
-        # 4. Handle runs that go to the very beginning or end
+        # 4. Account for runs touching the array’s ends
         if mask[0]:
             starts = np.r_[0, starts]
         if mask[-1]:
             ends   = np.r_[ends, mask.size - 1]
 
-        # 5. Pick the run containing `best`
-        #    (there’s guaranteed to be exactly one)
-        idx = np.nonzero((starts <= best) & (ends >= best))[0][0]
-        left, right = starts[idx], ends[idx]
+        # 5. Locate the run that contains `best`
+        run_idx = np.nonzero((starts <= best) & (ends >= best))[0][0]
+        left, right = starts[run_idx], ends[run_idx]
 
         # 6. Return the midpoint
         return (left + right) // 2
