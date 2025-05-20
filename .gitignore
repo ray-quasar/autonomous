@@ -15,6 +15,7 @@ devel/
 install/
 logs/
 __pycache__/
+*.cpyc
 *.pyc
 *.pyo
 *.pyd
