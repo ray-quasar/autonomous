@@ -49,7 +49,7 @@ Launching with parameters:
         # Cache for scan parameters
         self._scan_params = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 8.0 
+        self.lookahead_distance = 12.0 
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -230,24 +230,24 @@ Launching with parameters:
         Returns:
             Middle of the deepest gap.
         """
-        # # Find the index of the maximum range value
-        # best_index = np.argmax(ranges)
-        # # Expand left and right until the values drop below 90% of the maximum
-        # threshold = 0.9 * ranges[best_index]
-        # left = best_index
-        # right = best_index
-        # while left > 0 and ranges[left - 1] >= threshold:
-        #     left -= 1
-        # while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
-        #     right += 1
-        # middle = (left + right) // 2
-        # return middle
+        # Find the index of the maximum range value
+        best_index = np.argmax(ranges)
+        # Expand left and right until the values drop below 90% of the maximum
+        threshold = 0.9 * ranges[best_index]
+        left = best_index
+        right = best_index
+        while left > 0 and ranges[left - 1] >= threshold:
+            left -= 1
+        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+            right += 1
+        middle = (left + right) // 2
+        return middle
 
-        return np.average( 
-            np.where(
-                ranges > (0.9 * np.max(ranges))
-            ) 
-        ).astype(int)
+        # return np.average( 
+        #     np.where(
+        #         ranges > (0.9 * np.max(ranges))
+        #     ) 
+        # ).astype(int)
     
     def publish_drive_command(self, ranges, deep_index):
         """
@@ -283,7 +283,7 @@ Launching with parameters:
         # Operates as a function of:
         forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
         # Parameters
-        speed_max = 6.0
+        speed_max = 4.0
         speed_min = 1.0
         accel = 1.0
         a_center = 3.0
