@@ -49,7 +49,7 @@ Launching with parameters:
         # Cache for scan parameters
         self._scan_params = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 12.0 
+        self.lookahead_distance = 10.0 
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -233,7 +233,7 @@ Launching with parameters:
         # Find the index of the maximum range value
         best_index = np.argmax(ranges)
         # Expand left and right until the values drop below 90% of the maximum
-        threshold = 0.9 * ranges[best_index]
+        threshold = 0.95 * ranges[best_index]
         left = best_index
         right = best_index
         while left > 0 and ranges[left - 1] >= threshold:
@@ -281,7 +281,7 @@ Launching with parameters:
         
         # # Parametrized Logistic Curve Speed Profile
         # Operates as a function of:
-        forward_distance = max(ranges[len(ranges)//2 - 5 : len(ranges)//2 + 5])
+        forward_distance = max(ranges[len(ranges)//2 - 25 : len(ranges)//2 + 25])
         # Parameters
         speed_max = 4.0
         speed_min = 1.0
