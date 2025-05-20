@@ -265,8 +265,9 @@ Launching with parameters:
         run_idx = np.nonzero((starts <= best) & (ends >= best))[0][0]
         left, right = starts[run_idx], ends[run_idx]
 
-        # 6. Return the midpoint
-        return (left + right) // 2
+        # 6. Return the midpoint. Avoids a divize by zero error
+        mid = (left + right) // 2
+        return max(1, mid)
     
     # def find_deepest_gap(self, ranges):
     #     """
