@@ -46,8 +46,10 @@ Launching with parameters:
         self.lidar_sub = self.create_subscription(
             LaserScan, '/scan', self.lidar_callback, 10
         )
-        # Cache for scan parameters
+        # Cache for scan parameters        
         self._scan_params = None
+        # Lookup tables for wall proximity checks
+        self._proximity_lut = None
         # Lookahead distance (in meters)
         self.lookahead_distance = 10.0 
 
@@ -141,14 +143,15 @@ Launching with parameters:
                 'range_max': scan.range_max,
                 'num_points': len(scan.ranges)
             }
+            # self._initialize_proximity_lut()
             self.get_logger().info(
-                f"\n\r Cached scan parameters."
+                f"\n\r Cached scan parameters and initialized LUTs."
             )
 
 
         
         # Preprocess the scan data
-        ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
+        full_ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
             # convolve1d(
                 np.nan_to_num(np.clip(  # 2. Get rid of garbage values
                     np.array(scan.ranges),  # 1. Convert scan to NumPy array
@@ -173,22 +176,22 @@ Launching with parameters:
 
         
         # Find disparities and modify ranges
-        disparities, ranges = self.convolutional_disp_extender2(
-            ranges, self.disparity_check
+        disparities, ext_ranges = self.convolutional_disp_extender2(
+            full_ranges, self.disparity_check
             )
         
         # Publish the disparity points to the '/disparities' topic
-        self.publish_disparity_scan(ranges, disparities, scan)
+        self.publish_disparity_scan(full_ranges, disparities, scan)
 
         # Occlude the ranges to a 180-degree FOV
-        ranges[:self._scan_params['num_points']//4] = 0.0
-        ranges[-self._scan_params['num_points']//4:] = 0.0
+        ext_ranges[:self._scan_params['num_points']//4] = 0.0
+        ext_ranges[-self._scan_params['num_points']//4:] = 0.0
 
         # Find the index of the deepest cluster in the LiDAR scan data
-        target_index = self.find_deepest_gap(ranges)
+        target_index = self.find_deepest_gap(ext_ranges)
 
-        self.publish_drive_command(ranges, target_index) #, forward_distance)
-        self.publish_laser_scan(ranges, scan)
+        self.publish_drive_command(ext_ranges, full_ranges, target_index)
+        self.publish_laser_scan(ext_ranges, scan)
 
     # # Helper functions
     
@@ -300,7 +303,7 @@ Launching with parameters:
         # #     ) 
         # # ).astype(int)
     
-    def publish_drive_command(self, ranges, deep_index): #, forward_distance):
+    def publish_drive_command(self, ext_ranges, full_ranges, deep_index):
         """
         Publish an AckermannDriveStamped command message to the '/drive' topic.d
         """   
@@ -316,8 +319,9 @@ Launching with parameters:
         - The updated value of the hypotenuse is:
              hypotenuse = forward_distance / cos(target_angle)
         """
-        forward_distance = ranges[self._scan_params['num_points']//2] # type:ignore
-        target_distance = ranges[deep_index]  # The distance to the target point
+        forward_distance = max(ranges[self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5])   # type: ignore # The distance directly in front of the car
+
+        target_distance = ext_ranges[deep_index]  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance / np.cos(target_angle)
         if new_target_distance < target_distance:
@@ -326,6 +330,34 @@ Launching with parameters:
         theoretical_steering_angle = np.arctan(
             self.wheelbase * 2 * np.sin(target_angle) / target_distance
         )
+
+        # If the wall is too close and we are turning towards it, we need to go straight instead
+        # We check values from \theta = angle_min + arctan(18/25) to -90 and 90 to angle_max - arctan(18/25)
+        # We can figure these indices once and store them, for now we'll do it the hard way
+        # The condition for the wall being too close i defined as 
+        # sin(theta) * ranges_within_search < 18 cm
+        # Instead of a repeated sin calc, this can also be a LUT initialized once
+
+        search_angle = np.arctan(25/18)
+        # Search rear left "quarter"
+        search_start_left = self._scan_params['num_points']//4 + (search_angle/self._scan_params['angle_increment']).asint() # type:ignore
+        search_end_left = self._scan_params['num_points']//4 # type:ignore
+        current_angle = search_angle
+        for i in np.arange(search_start_left, search_end_left):
+            if (full_ranges[i] / np.sin(current_angle) > 0.18) and (np.sign(theoretical_steering_angle) is -1):
+                theoretical_steering_angle = 0.0
+                break
+            current_angle = current_angle + self._scan_params['angle_increment'] # type:ignore
+
+        # Search rear right "quarter"
+        search_start_right = -self._scan_params['num_points']//4 # type:ignore
+        search_end_right = -self._scan_params['num_points']//4 + (search_angle/self._scan_params['angle_increment']).asint() # type:ignore
+        current_angle = np.pi/2
+        for i in np.arange(search_start_right, search_end_right):
+            if (full_ranges[i] / np.sin(current_angle) > 0.18) and (np.sign(theoretical_steering_angle) is 1):
+                theoretical_steering_angle = 0.0
+                break
+            current_angle = current_angle + self._scan_params['angle_increment'] # type:ignore
         
         # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
@@ -442,6 +474,14 @@ Speed: {speed:.2f} m/s
             self.brake_timer.cancel()  # Stop the timer
             self.get_logger().info(" --- Brake released. --- ")
 
+    # def _initialize_proximity_lut(self):
+    #     """Initialize lookup table for wall proximity checks"""
+    #     if self._proximity_lut is not None:
+    #         return
+        
+    #     search_width_angle = np.arctan(25/18)
+    #     lut_indices = np.linspace(np.pi/2, np.pi/2+search_width_angle, self._scan_params['angle_increment']) # type: ignore
+    #     self._proximity_lut = 0.18 * np.sin(lut_indices)
 
 def main(args=None):
     rclpy.init(args=args)
