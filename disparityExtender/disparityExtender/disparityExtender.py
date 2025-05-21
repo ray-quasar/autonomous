@@ -4,7 +4,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import UInt8, Float64
-from scipy.ndimage import convolve1d
+from scipy.ndimage import convolve1d, gaussian_filter1d
 
 class disparityExtender(Node):
     def __init__(self):
@@ -51,7 +51,7 @@ Launching with parameters:
         # Lookup tables for wall proximity checks
         self._proximity_lut = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 3.0 
+        self.lookahead_distance = 5.0 # steering
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -153,10 +153,12 @@ Launching with parameters:
         # Preprocess the scan data
         full_ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
             # convolve1d(
+            gaussian_filter1d(
                 np.nan_to_num(np.clip(  # 2. Get rid of garbage values
                     np.array(scan.ranges),  # 1. Convert scan to NumPy array
                 scan.range_min, self.lookahead_distance), nan=0.0, posinf=0.0), 
             # np.ones(3)/3, mode='wrap'),
+            sigma = 1, mode='wrap'),
         self._scan_params['num_points']//2))
 
         # ranges = np.roll(np.flip(
@@ -197,7 +199,7 @@ Launching with parameters:
     
     def convolutional_disp_extender2(self, ranges, check_value):
         # Edge detection kernel
-        edge_filter = np.array([-1, 1])
+        edge_filter = np.array([-1, 0, 0, 0, 1])
         # convolved = np.zeros(self._scan_params['num_points'])
         convolved = convolve1d(ranges, edge_filter, mode='wrap')
 
@@ -284,25 +286,25 @@ Launching with parameters:
         Returns:
             Middle of the deepest gap.
         """
-        # Find the index of the maximum range value
-        best_index = np.argmax(ranges)
-        # Expand left and right until the values drop below 90% of the maximum
-        threshold = 0.95 * ranges[best_index]
-        threshold = 0.95 * ranges[best_index]
-        left = best_index
-        right = best_index
-        while left > 0 and ranges[left - 1] >= threshold:
-            left -= 1
-        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
-            right += 1
-        middle = (left + right) // 2
-        return middle
+        # # Find the index of the maximum range value
+        # best_index = np.argmax(ranges)
+        # # Expand left and right until the values drop below 90% of the maximum
+        # threshold = 0.95 * ranges[best_index]
+        # threshold = 0.95 * ranges[best_index]
+        # left = best_index
+        # right = best_index
+        # while left > 0 and ranges[left - 1] >= threshold:
+        #     left -= 1
+        # while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+        #     right += 1
+        # middle = (left + right) // 2
+        # return middle
 
-        # # return np.average( 
-        # #     np.where(
-        # #         ranges > (0.9 * np.max(ranges))
-        # #     ) 
-        # # ).astype(int)
+        return np.average( 
+            np.where(
+                ranges > (0.9 * np.max(ranges))
+            ) 
+        ).astype(int)
     
     def publish_drive_command(self, ext_ranges, full_ranges, deep_index):
         """
@@ -352,12 +354,23 @@ Launching with parameters:
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
 
         # # Parametrized Logistic Curve Speed Profile
-        # Operates as a function of forward_distance
+        # Operates as a function of forward_distance (absolute)
         # Parameters
-        speed_max = 2.0
-        speed_min = 1.0
+
+        forward_distance = max(
+                np.average(
+                    full_ranges[
+                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25
+                        ]
+                ),
+            8.0
+        )
+            
+
+        speed_max = 3.0
+        speed_min = 0.5
         accel = 1.0
-        a_center = 3.0
+        a_center = 2.0
         speed = (
                 (speed_max - speed_min) 
                 / (1 + np.exp(- accel * (forward_distance - a_center))) 
