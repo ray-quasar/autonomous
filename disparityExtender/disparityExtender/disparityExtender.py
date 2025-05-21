@@ -51,7 +51,7 @@ Launching with parameters:
         # Lookup tables for wall proximity checks
         self._proximity_lut = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 10.0 
+        self.lookahead_distance = 3.0 
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -155,7 +155,7 @@ Launching with parameters:
             # convolve1d(
                 np.nan_to_num(np.clip(  # 2. Get rid of garbage values
                     np.array(scan.ranges),  # 1. Convert scan to NumPy array
-                scan.range_min, self.lookahead_distance), nan=0.0), 
+                scan.range_min, self.lookahead_distance), nan=0.0, posinf=0.0), 
             # np.ones(3)/3, mode='wrap'),
         self._scan_params['num_points']//2))
 
@@ -320,7 +320,7 @@ Launching with parameters:
         - The updated value of the hypotenuse is:
              hypotenuse = forward_distance / cos(target_angle)
         """
-        forward_distance = max(ranges[self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5])   # type: ignore # The distance directly in front of the car
+        forward_distance = np.average(ext_ranges[self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5])   # type: ignore # The distance directly in front of the car
 
         target_distance = ext_ranges[deep_index]  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
@@ -332,41 +332,29 @@ Launching with parameters:
             self.wheelbase * 2 * np.sin(target_angle) / target_distance
         )
 
-        # If the wall is too close and we are turning towards it, we need to go straight instead
-        # We check values from \theta = angle_min + arctan(18/25) to -90 and 90 to angle_max - arctan(18/25)
-        # We can figure these indices once and store them, for now we'll do it the hard way
-        # The condition for the wall being too close i defined as 
-        # sin(theta) * ranges_within_search < 18 cm
-        # Instead of a repeated sin calc, this can also be a LUT initialized once
+        # if np.sign(theoretical_steering_angle): # Left
+        #     mask = np.zeros(len(full_ranges))
+        #     mask[3*len(full_ranges)//4 : 3*len(full_ranges)//4 + 300] = 1
+        #     masked_ranges = full_ranges * mask
+        #     # Check if any non-zero masked ranges are less than 0.25m
+        #     if np.any((masked_ranges > 0) & (masked_ranges < 0.25)):
+        #         print("Wall too close on left side")
+        #         theoretical_steering_angle = 0.0
+        # else:
+        #     mask = np.zeros(len(full_ranges))
+        #     mask[(len(full_ranges)//4 - 300):len(full_ranges)//4] = 1
+        #     masked_ranges = full_ranges * mask
+        #     # Check if any non-zero masked ranges are less than 0.25m
+        #     if np.any((masked_ranges > 0) & (masked_ranges < 0.25)):
+        #         print("Wall too close on right side")
+        #         theoretical_steering_angle = 0.0
 
-        search_angle = np.arctan(25/18)
-        # Search rear left "quarter"
-        search_start_left = self._scan_params['num_points']//4 + (search_angle/self._scan_params['angle_increment']).asint() # type:ignore
-        search_end_left = self._scan_params['num_points']//4 # type:ignore
-        current_angle = search_angle
-        for i in np.arange(search_start_left, search_end_left):
-            if (full_ranges[i] / np.sin(current_angle) > 0.18) and (np.sign(theoretical_steering_angle) is -1):
-                theoretical_steering_angle = 0.0
-                break
-            current_angle = current_angle + self._scan_params['angle_increment'] # type:ignore
-
-        # Search rear right "quarter"
-        search_start_right = -self._scan_params['num_points']//4 # type:ignore
-        search_end_right = -self._scan_params['num_points']//4 + (search_angle/self._scan_params['angle_increment']).asint() # type:ignore
-        current_angle = np.pi/2
-        for i in np.arange(search_start_right, search_end_right):
-            if (full_ranges[i] / np.sin(current_angle) > 0.18) and (np.sign(theoretical_steering_angle) is 1):
-                theoretical_steering_angle = 0.0
-                break
-            current_angle = current_angle + self._scan_params['angle_increment'] # type:ignore
-        
-        # Limit the steering angle to the maximum steering angle of the car
         bounded_steering_angle = max(min(theoretical_steering_angle, 0.34), -0.34)
-        
+
         # # Parametrized Logistic Curve Speed Profile
         # Operates as a function of forward_distance
         # Parameters
-        speed_max = 4.0
+        speed_max = 2.0
         speed_min = 1.0
         accel = 1.0
         a_center = 3.0
