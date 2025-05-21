@@ -153,12 +153,14 @@ Launching with parameters:
         # Preprocess the scan data
         full_ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
             # convolve1d(
-            gaussian_filter1d(
-                np.nan_to_num(np.clip(  # 2. Get rid of garbage values
-                    np.array(scan.ranges),  # 1. Convert scan to NumPy array
-                scan.range_min, self.lookahead_distance), nan=0.0, posinf=0.0), 
+            # gaussian_filter1d(
+                np.nan_to_num(
+                        # np.clip(  # 2. Get rid of garbage values
+                            np.array(scan.ranges),  # 1. Convert scan to NumPy array
+                        # scan.range_min, self.lookahead_distance), 
+                nan=0.0, posinf=0.0), 
             # np.ones(3)/3, mode='wrap'),
-            sigma = 1, mode='wrap'),
+            # sigma = 1, mode='wrap'),
         self._scan_params['num_points']//2))
 
         # ranges = np.roll(np.flip(
@@ -170,16 +172,16 @@ Launching with parameters:
         
         # forward_distance = max(ranges[self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25])   # type: ignore # The distance directly in front of the car
 
-        # ranges = np.where(  # 2. Zero out values above lookahead_distance
-        #             ranges > self.lookahead_distance,
-        #             0.0,
-        #             ranges
-        #         )
+        ext_ranges = np.where(  # 2. Zero out values above lookahead_distance
+                    full_ranges > self.lookahead_distance,
+                    0.0,
+                    full_ranges
+                )
 
         
         # Find disparities and modify ranges
         disparities, ext_ranges = self.convolutional_disp_extender2(
-            full_ranges, self.disparity_check
+            ext_ranges, self.disparity_check
             )
         
         # Publish the disparity points to the '/disparities' topic
@@ -207,15 +209,20 @@ Launching with parameters:
         right_disparities = np.where(
             (convolved < -check_value) & 
             (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) # type: ignore
-        )[0]
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) & # type: ignore
+            (ranges > 0) &  # Check if current point is non-zero
+            (np.roll(ranges, -4) > 0)  # Check if point 4 steps ahead is non-zero
+        )[0][:-4]  # Trim the last 4 points to match the convolution
+
         left_disparities = np.where(
             (convolved > check_value) &
             (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) # type: ignore
-        )[0] 
+            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) & # type: ignore
+            (ranges > 0) &  # Check if current point is non-zero 
+            (np.roll(ranges, 4) > 0)  # Check if point 4 steps behind is non-zero
+        )[0][4:]  # Trim the first 4 points to match the convolution
 
-        disparities = np.concatenate((left_disparities,right_disparities))
+        disparities = np.concatenate((left_disparities,right_disparities)) 
 
         # Compute number of points to rewrite (vectorized)
         def compute_extension_pts(disparities):
@@ -322,9 +329,15 @@ Launching with parameters:
         - The updated value of the hypotenuse is:
              hypotenuse = forward_distance / cos(target_angle)
         """
-        forward_distance = np.average(ext_ranges[self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5])   # type: ignore # The distance directly in front of the car
+        forward_distance = min(
+                np.average(
+                    full_ranges[
+                        self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5 # type: ignore
+                        ]
+                    ), 
+                self.lookahead_distance)   # The distance directly in front of the car
 
-        target_distance = ext_ranges[deep_index]  # The distance to the target point
+        target_distance = min(full_ranges[deep_index], self.lookahead_distance)  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance / np.cos(target_angle)
         if new_target_distance < target_distance:
@@ -360,7 +373,7 @@ Launching with parameters:
         forward_distance = max(
                 np.average(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25
+                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25 # type: ignore
                         ]
                 ),
             8.0
