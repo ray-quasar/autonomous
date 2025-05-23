@@ -158,7 +158,7 @@ Launching with parameters:
                         # np.clip(  # 2. Get rid of garbage values
                             np.array(scan.ranges),  # 1. Convert scan to NumPy array
                         # scan.range_min, self.lookahead_distance), 
-                nan=0.0, posinf=0.0), 
+                nan=0.0), 
             # np.ones(3)/3, mode='wrap'),
             # sigma = 1, mode='wrap'),
         self._scan_params['num_points']//2))
@@ -293,11 +293,11 @@ Launching with parameters:
         Returns:
             Middle of the deepest gap.
         """
-        # # Find the index of the maximum range value
+        # # # Find the index of the maximum range value
         # best_index = np.argmax(ranges)
         # # Expand left and right until the values drop below 90% of the maximum
         # threshold = 0.95 * ranges[best_index]
-        # threshold = 0.95 * ranges[best_index]
+        # # threshold = 0.95 * ranges[best_index]
         # left = best_index
         # right = best_index
         # while left > 0 and ranges[left - 1] >= threshold:
@@ -309,7 +309,7 @@ Launching with parameters:
 
         return np.average( 
             np.where(
-                ranges > (0.9 * np.max(ranges))
+                ranges > (0.95 * np.max(ranges))
             ) 
         ).astype(int)
     
@@ -330,9 +330,9 @@ Launching with parameters:
              hypotenuse = forward_distance / cos(target_angle)
         """
         forward_distance = min(
-                np.average(
+                np.min(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 5 : self._scan_params['num_points']//2 + 5 # type: ignore
+                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25 # type: ignore
                         ]
                     ), 
                 self.lookahead_distance)   # The distance directly in front of the car
@@ -370,20 +370,18 @@ Launching with parameters:
         # Operates as a function of forward_distance (absolute)
         # Parameters
 
-        forward_distance = max(
-                np.average(
+        forward_distance = min(
+                np.max(
                     full_ranges[
                         self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25 # type: ignore
                         ]
                 ),
             8.0
         )
-            
-
-        speed_max = 3.0
-        speed_min = 0.5
-        accel = 1.0
-        a_center = 2.0
+        speed_max = 4.0
+        speed_min = 1.0
+        accel = 0.75
+        a_center = 3.0
         speed = (
                 (speed_max - speed_min) 
                 / (1 + np.exp(- accel * (forward_distance - a_center))) 
