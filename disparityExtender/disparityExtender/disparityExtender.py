@@ -388,6 +388,18 @@ Launching with parameters:
                 + speed_min
         )
 
+        # From DeepSeek, speed filtering, proportional low-pass
+        """
+        # In your planning node
+        prev_speed = 0.0
+        filter_alpha = 0.3  # Adjust between 0.0 (no filtering) and 1.0 (no change)
+
+        # After calculating speed
+        filtered_speed = filter_alpha * speed + (1 - filter_alpha) * prev_speed
+        prev_speed = filtered_speed
+        # Use filtered_speed as your 
+        """
+
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = self.get_clock().now().to_msg()
         drive_msg.header.frame_id = "base_link"
