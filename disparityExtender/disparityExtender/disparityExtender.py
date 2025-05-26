@@ -432,17 +432,9 @@ Speed: {speed:.2f} m/s
         disparities_values = np.flip(np.roll(
             disparities_values, -len(disparities_values)//2)).tolist()
         
-        modified_scan = LaserScan()
-        modified_scan.header.stamp = raw_scan_data.header.stamp
-        modified_scan.header.frame_id = 'laser' 
-        modified_scan.angle_min = raw_scan_data.angle_min
-        modified_scan.angle_max = raw_scan_data.angle_max
-        modified_scan.angle_increment = raw_scan_data.angle_increment
-        modified_scan.scan_time = raw_scan_data.scan_time
-        modified_scan.range_min = raw_scan_data.range_min
-        modified_scan.range_max = raw_scan_data.range_max
+        modified_scan = copy.deepcopy(raw_scan_data)
+        modified_scan.header.frame_id = 'laser'
         modified_scan.ranges = disparities_values
-        modified_scan.intensities = raw_scan_data.intensities
 
         self.disparity_pub.publish(modified_scan)
 
@@ -461,19 +453,7 @@ Speed: {speed:.2f} m/s
 
         modified_scan = copy.deepcopy(raw_scan_data)
         modified_scan.header.frame_id = 'laser'
-        modified_scan.ranges = ranges 
-       
-        # modified_scan = LaserScan()
-        # modified_scan.header.stamp = raw_scan_data.header.stamp
-        # modified_scan.header.frame_id = 'laser'
-        # modified_scan.angle_min = raw_scan_data.angle_min
-        # modified_scan.angle_max = raw_scan_data.angle_max
-        # modified_scan.angle_increment = raw_scan_data.angle_increment
-        # modified_scan.scan_time = raw_scan_data.scan_time
-        # modified_scan.range_min = raw_scan_data.range_min
-        # modified_scan.range_max = raw_scan_data.range_max
-        # modified_scan.ranges = ranges
-        # modified_scan.intensities = raw_scan_data.intensities
+        modified_scan.ranges = ranges
 
         self.ext_scan_publisher.publish(modified_scan)
 
