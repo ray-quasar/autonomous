@@ -185,8 +185,9 @@ Launching with parameters:
         # Find the index of the deepest cluster in the LiDAR scan data
         # target_index = self.find_deepest_gap(ext_ranges)
         # TEST: Gaussian Blur
-        ext_ranges = gaussian_filter1d(ext_ranges, sigma = 1, mode = 'wrap')
-        target_index = np.argmax(ext_ranges)
+        # ext_ranges = gaussian_filter1d(ext_ranges, sigma = 1, mode = 'wrap')
+        # target_index = np.argmax(ext_ranges)
+        target_index = self.find_gaussian_max(ext_ranges)
 
         self.publish_drive_command(ext_ranges, full_ranges, target_index)
         self.publish_laser_scan(ext_ranges, scan)
