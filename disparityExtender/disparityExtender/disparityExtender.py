@@ -1,5 +1,6 @@
 import rclpy
 import numpy as np
+import copy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -22,6 +23,7 @@ ____ ____ _   _    ____ _  _ ____ ____ ____ ____
 
         # Debug and visualization flags
         self.enable_speed = self.declare_parameter('enable_speed', False).value
+        # self.enable_speed = True # Just for testing
         self.enable_logging = self.declare_parameter('enable_logging', False).value
         self.enable_visualization = self.declare_parameter('enable_visualization', True).value
         self.get_logger().info(
@@ -145,54 +147,44 @@ Launching with parameters:
             }
             # self._initialize_proximity_lut()
             self.get_logger().info(
-                f"\n\r Cached scan parameters and initialized LUTs."
+                f"\n\r Cached scan parameters and initialized LUTs. \
+                  \n\r Angles (rad): {scan.angle_min:.2f} to {scan.angle_max:.2f}, by {scan.angle_increment:.2f} \
+                  \n\r Ranges (m): {scan.range_min:.2f} to {scan.range_max:.2f}, with {len(scan.ranges)} points"
             )
 
-
-        
         # Preprocess the scan data
-        full_ranges = np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
-            # convolve1d(
-            # gaussian_filter1d(
-                np.nan_to_num(
-                        # np.clip(  # 2. Get rid of garbage values
-                            np.array(scan.ranges),  # 1. Convert scan to NumPy array
-                        # scan.range_min, self.lookahead_distance), 
-                nan=0.0), 
-            # np.ones(3)/3, mode='wrap'),
-            # sigma = 1, mode='wrap'),
-        self._scan_params['num_points']//2))
-
-        # ranges = np.roll(np.flip(
-        #             np.nan_to_num(  # 1. Convert scan to NumPy array and handle invalid values
-        #                 np.array(scan.ranges),
-        #                 nan=0.0
-        #             )
-        #         ), self._scan_params['num_points']//2)
+        full_ranges =   np.flip(np.roll(   # 3. Rotate the scan pi/2 about both x and z 
+                            np.nan_to_num(
+                                np.clip(  # 2. Get rid of garbage values
+                                    np.array(scan.ranges),  # 1. Convert scan to NumPy array
+                                scan.range_min, scan.range_max), 
+                            nan = 0.0), 
+                        self._scan_params['num_points']//2))
         
-        # forward_distance = max(ranges[self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25])   # type: ignore # The distance directly in front of the car
-
-        ext_ranges = np.where(  # 2. Zero out values above lookahead_distance
-                    full_ranges > self.lookahead_distance,
-                    0.0,
-                    full_ranges
-                )
-
+        ## NOTE: Indices start exactly behind the car and increase CCW
         
         # Find disparities and modify ranges
         disparities, ext_ranges = self.convolutional_disp_extender2(
-            ext_ranges, self.disparity_check
+            full_ranges, self.disparity_check
             )
+        
+        ext_ranges = np.where( 
+                    ext_ranges > self.lookahead_distance,
+                    0.0,
+                    ext_ranges
+                )
         
         # Publish the disparity points to the '/disparities' topic
         self.publish_disparity_scan(full_ranges, disparities, scan)
+        # self.publish_disparity_scan(scan.ranges, disparities, scan)
 
         # Occlude the ranges to a 180-degree FOV
         ext_ranges[:self._scan_params['num_points']//4] = 0.0
         ext_ranges[-self._scan_params['num_points']//4:] = 0.0
 
         # Find the index of the deepest cluster in the LiDAR scan data
-        target_index = self.find_deepest_gap(ext_ranges)
+        # target_index = self.find_deepest_gap(ext_ranges)
+        target_index = np.argmax(ext_ranges)
 
         self.publish_drive_command(ext_ranges, full_ranges, target_index)
         self.publish_laser_scan(ext_ranges, scan)
@@ -200,87 +192,75 @@ Launching with parameters:
     # # Helper functions
     
     def convolutional_disp_extender2(self, ranges, check_value):
+
+        ## Detection
+
         # Edge detection kernel
-        edge_filter = np.array([-1, 0, 0, 0, 1])
-        # convolved = np.zeros(self._scan_params['num_points'])
-        convolved = convolve1d(ranges, edge_filter, mode='wrap')
+        edge_filter = np.array([-1,1])
+        convolved = np.zeros(self._scan_params['num_points'])
+        convolved[
+            self._scan_params['num_points']//4 : 3*self._scan_params['num_points']//4] = (
+            convolve1d(ranges, edge_filter, mode='wrap')
+        )[self._scan_params['num_points']//4 : 3*self._scan_params['num_points']//4]
 
-        # Detect left and right disparities
-        right_disparities = np.where(
+        ## Identification
+
+        # The convolution result is NEGATIVE when we go from a small value to a large one:
+        negative_disparities = np.where(
             (convolved < -check_value) & 
-            (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) & # type: ignore
-            (ranges > 0) &  # Check if current point is non-zero
-            (np.roll(ranges, -4) > 0)  # Check if point 4 steps ahead is non-zero
-        )[0][:-4]  # Trim the last 4 points to match the convolution
+            # We only care to extend disparities within the lookahead_distance
+            # For negative disparities, the point of interest is one index less, we roll the other way
+            (np.roll(ranges, +1) < self.lookahead_distance)
+        )[0] - 1  
 
-        left_disparities = np.where(
+        # The convolution result is POSITIVE when we go from a small value to a large one
+        positive_disparities = np.where(
             (convolved > check_value) &
-            (np.arange(len(ranges)) > self._scan_params['num_points']//4) & # type: ignore
-            (np.arange(len(ranges)) < 3*self._scan_params['num_points']//4) & # type: ignore
-            (ranges > 0) &  # Check if current point is non-zero 
-            (np.roll(ranges, 4) > 0)  # Check if point 4 steps behind is non-zero
-        )[0][4:]  # Trim the first 4 points to match the convolution
+            (np.roll(ranges, -1) < self.lookahead_distance)
+        )[0] + 1
 
-        disparities = np.concatenate((left_disparities,right_disparities)) 
+        disparities = np.concatenate((positive_disparities,negative_disparities)) 
+
+        ## Extension
+
+        # Initialize output
+        extended_ranges = np.copy(ranges)
 
         # Compute number of points to rewrite (vectorized)
         def compute_extension_pts(disparities):
             angles = np.arctan(self.extension_distance / ranges[disparities])
             return np.clip((angles / self._scan_params['angle_increment']).astype(int), 0, self._scan_params['num_points']) # type: ignore
+        
+        # Disparities are rewritten according to the value at the disparity index:
+            # In this rewrite I'm ensuring the value at the dispartiy index is infact the "low" value
+        num_pts_neg = compute_extension_pts(negative_disparities)
+        num_pts_pos = compute_extension_pts(positive_disparities)
 
-        num_pts_left = compute_extension_pts(left_disparities)
-        num_pts_right = compute_extension_pts(right_disparities)
+        ## Indices increase CCW. 
 
-        # Initialize output
-        extended_ranges = np.copy(ranges)
+        # Negative disparities are caught on the "small"est index, closer to zero
+        # negative_starts = negative_disparities
+        negative_ends = np.clip(negative_disparities + num_pts_neg, 0, self._scan_params['num_points']) 
+            # ^ To ensure we are not running over into indices that do not exist
 
-        # Vectorized left extension
-        left_starts = np.clip(left_disparities - num_pts_left, 0, self._scan_params['num_points'])  # type: ignore
-        for start, end in zip(left_starts, left_disparities):
+        for start, end in zip(negative_disparities, negative_ends):
+            mask = extended_ranges[start:end] > ranges[start]
+                # ^ To ensure we are not rewriting values with greater numbers
+            extended_ranges[start:end][mask] = ranges[start]
+                # We always want to rewrtie to the value at the disparity
+                # In the negative case, this is the starting index
+
+        # Positive dispartities are caught on the "largest" index, closer to 1080
+        # positive_ends = positive_disparities
+        positive_starts = np.clip(positive_disparities - num_pts_pos, 0, self._scan_params['num_points'])
+            # ^ To ensure we do not start at a negative index
+        for start, end in zip(positive_starts, positive_disparities):
             mask = extended_ranges[start:end] > ranges[end]
             extended_ranges[start:end][mask] = ranges[end]
-
-        # Vectorized right extension
-        right_ends = np.clip(right_disparities + num_pts_right, 0, self._scan_params['num_points']) # type: ignore
-        for start, end in zip(right_disparities, right_ends):
-            mask = extended_ranges[start:end] > ranges[start]
-            extended_ranges[start:end][mask] = ranges[start]
+                # We always want to rewrite to the value at the disparity
+                # In the positive case, this is the ending index
 
         return disparities, extended_ranges
-    
-        ##Try 3
-    # def find_deepest_gap(self, ranges):
-    #     """
-    #     Finds the “deepest” gap in the scan by locating the max range
-    #     then taking the contiguous region ≥90% of that max, and
-    #     returning its midpoint index.
-    #     """
-    #     # 1. Find the index of the maximum
-    #     best = ranges.argmax()
-    #     thresh = ranges[best] * 0.9
-
-    #     # 2. Mask all values ≥ threshold
-    #     mask = ranges >= thresh
-
-    #     # 3. Compute where runs of True start/end via diff
-    #     diff = np.diff(mask.astype(int))
-    #     starts = np.where(diff == 1)[0] + 1
-    #     ends   = np.where(diff == -1)[0]
-
-    #     # 4. Account for runs touching the array’s ends
-    #     if mask[0]:
-    #         starts = np.r_[0, starts]
-    #     if mask[-1]:
-    #         ends   = np.r_[ends, mask.size - 1]
-
-    #     # 5. Locate the run that contains `best`
-    #     run_idx = np.nonzero((starts <= best) & (ends >= best))[0][0]
-    #     left, right = starts[run_idx], ends[run_idx]
-
-    #     # 6. Return the midpoint. Avoids a divize by zero error
-    #     mid = (left + right) // 2
-    #     return mid
     
     def find_deepest_gap(self, ranges):
         """
@@ -293,25 +273,30 @@ Launching with parameters:
         Returns:
             Middle of the deepest gap.
         """
-        # # # Find the index of the maximum range value
-        # best_index = np.argmax(ranges)
-        # # Expand left and right until the values drop below 90% of the maximum
+        # # Find the index of the maximum range value
+        best_index = np.argmax(ranges)
+        # Expand left and right until the values drop below 90% of the maximum
+        threshold = 0.95 * ranges[best_index]
         # threshold = 0.95 * ranges[best_index]
-        # # threshold = 0.95 * ranges[best_index]
-        # left = best_index
-        # right = best_index
-        # while left > 0 and ranges[left - 1] >= threshold:
-        #     left -= 1
-        # while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
-        #     right += 1
-        # middle = (left + right) // 2
-        # return middle
+        left = best_index
+        right = best_index
+        while left > 0 and ranges[left - 1] >= threshold:
+            left -= 1
+        while right < len(ranges) - 1 and ranges[right + 1] >= threshold:
+            right += 1
+        middle = (left + right) // 2
+        return middle
 
+    def find_90thperc_mean(self, ranges):
         return np.average( 
             np.where(
                 ranges > (0.95 * np.max(ranges))
             ) 
         ).astype(int)
+    
+    def find_gaussian_max(self, ranges):
+        ranges = gaussian_filter1d(ranges, sigma = 1, mode='wrap')
+        return np.argmax(ranges)
     
     def publish_drive_command(self, ext_ranges, full_ranges, deep_index):
         """
@@ -473,18 +458,22 @@ Speed: {speed:.2f} m/s
             return
 
         ranges = np.flip(np.roll(ranges, -self._scan_params['num_points']//2)).tolist() # type: ignore
-       
-        modified_scan = LaserScan()
-        modified_scan.header.stamp = raw_scan_data.header.stamp
+
+        modified_scan = copy.deepcopy(raw_scan_data)
         modified_scan.header.frame_id = 'laser'
-        modified_scan.angle_min = raw_scan_data.angle_min
-        modified_scan.angle_max = raw_scan_data.angle_max
-        modified_scan.angle_increment = raw_scan_data.angle_increment
-        modified_scan.scan_time = raw_scan_data.scan_time
-        modified_scan.range_min = raw_scan_data.range_min
-        modified_scan.range_max = raw_scan_data.range_max
-        modified_scan.ranges = ranges
-        modified_scan.intensities = raw_scan_data.intensities
+        modified_scan.ranges = ranges 
+       
+        # modified_scan = LaserScan()
+        # modified_scan.header.stamp = raw_scan_data.header.stamp
+        # modified_scan.header.frame_id = 'laser'
+        # modified_scan.angle_min = raw_scan_data.angle_min
+        # modified_scan.angle_max = raw_scan_data.angle_max
+        # modified_scan.angle_increment = raw_scan_data.angle_increment
+        # modified_scan.scan_time = raw_scan_data.scan_time
+        # modified_scan.range_min = raw_scan_data.range_min
+        # modified_scan.range_max = raw_scan_data.range_max
+        # modified_scan.ranges = ranges
+        # modified_scan.intensities = raw_scan_data.intensities
 
         self.ext_scan_publisher.publish(modified_scan)
 
