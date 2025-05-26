@@ -168,6 +168,7 @@ Launching with parameters:
             full_ranges, self.disparity_check
             )
         
+        # Set values above lookahead distance to zero
         ext_ranges = np.where( 
                     ext_ranges > self.lookahead_distance,
                     0.0,
@@ -176,7 +177,6 @@ Launching with parameters:
         
         # Publish the disparity points to the '/disparities' topic
         self.publish_disparity_scan(full_ranges, disparities, scan)
-        # self.publish_disparity_scan(scan.ranges, disparities, scan)
 
         # Occlude the ranges to a 180-degree FOV
         ext_ranges[:self._scan_params['num_points']//4] = 0.0
@@ -184,6 +184,8 @@ Launching with parameters:
 
         # Find the index of the deepest cluster in the LiDAR scan data
         # target_index = self.find_deepest_gap(ext_ranges)
+        # TEST: Gaussian Blur
+        ext_ranges = gaussian_filter1d(ext_ranges, sigma = 1, mode = 'wrap')
         target_index = np.argmax(ext_ranges)
 
         self.publish_drive_command(ext_ranges, full_ranges, target_index)
@@ -314,17 +316,19 @@ Launching with parameters:
         - The updated value of the hypotenuse is:
              hypotenuse = forward_distance / cos(target_angle)
         """
-        forward_distance = min(
-                np.min(
+
+        # Each point is 1/3 of a degree
+        forward_distance_steering = min(
+                np.average(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25 # type: ignore
+                        self._scan_params['num_points']//2 - 10 : self._scan_params['num_points']//2 + 10 # type: ignore
                         ]
                     ), 
                 self.lookahead_distance)   # The distance directly in front of the car
 
         target_distance = min(full_ranges[deep_index], self.lookahead_distance)  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
-        new_target_distance = forward_distance / np.cos(target_angle)
+        new_target_distance = forward_distance_steering / np.cos(target_angle)
         if new_target_distance < target_distance:
             target_distance = new_target_distance
 
@@ -355,21 +359,21 @@ Launching with parameters:
         # Operates as a function of forward_distance (absolute)
         # Parameters
 
-        forward_distance = min(
+        forward_distance_speed = min(
                 np.max(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 25 : self._scan_params['num_points']//2 + 25 # type: ignore
+                        self._scan_params['num_points']//2 - 15 : self._scan_params['num_points']//2 + 15 # type: ignore
                         ]
                 ),
             8.0
         )
         speed_max = 4.0
-        speed_min = 1.0
+        speed_min = 0.5
         accel = 0.75
         a_center = 3.0
         speed = (
                 (speed_max - speed_min) 
-                / (1 + np.exp(- accel * (forward_distance - a_center))) 
+                / (1 + np.exp(- accel * (forward_distance_speed - a_center))) 
                 + speed_min
         )
 
@@ -403,7 +407,9 @@ Launching with parameters:
         --- TEST MODE: SPEED DISABLED --- 
 Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
 Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+Forward Distance (Steering): {forward_distance_steering:.2f},
 Speed: {speed:.2f} m/s
+Forward Distance (Speed): {forward_distance_speed:.2f}
                 """
                 )
             else:
@@ -411,7 +417,9 @@ Speed: {speed:.2f} m/s
                     f"""
 Target Location: {target_distance:.2f} m, {np.rad2deg(-target_angle):.2f} deg, 
 Published Steering: {np.rad2deg(-bounded_steering_angle):.2f} deg, 
+Forward Distance (Steering): {forward_distance_steering:.2f},
 Speed: {speed:.2f} m/s
+Forward Distance (Speed): {forward_distance_speed:.2f}
                     """
             )
 
