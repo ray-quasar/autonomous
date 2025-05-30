@@ -60,7 +60,7 @@ Launching with parameters:
             AckermannDriveStamped, '/drive', 10
         )
         # Wheelbase of the car (in meters)
-        self.wheelbase = 0.325
+        self.wheelbase = 0.35
         # Maximum steering angle (radians)
         self.max_steering_angle = 0.34 
 
@@ -82,7 +82,7 @@ Launching with parameters:
             LaserScan, '/ext_scan', 10
         )
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.185
+        self.extension_distance = 0.20
 
         # # Navigation control subscriber
         self.nav_control_sub = self.create_subscription(
