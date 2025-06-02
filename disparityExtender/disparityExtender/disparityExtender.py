@@ -327,7 +327,8 @@ Launching with parameters:
                     ), 
                 self.lookahead_distance)   # The distance directly in front of the car
 
-        target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
+        # target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
+        target_distance = max(min(ext_ranges[deep_index], 1.35) - 0.2, 0.0) # Setting the target distance to the minimum turning radius
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance_steering / np.cos(target_angle)
         if new_target_distance < target_distance:
