@@ -53,7 +53,7 @@ Launching with parameters:
         # Lookup tables for wall proximity checks
         self._proximity_lut = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 5.0 # steering
+        self.lookahead_distance = 6.0 # steering
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -82,7 +82,7 @@ Launching with parameters:
             LaserScan, '/ext_scan', 10
         )
         # Threshold for extending disparities (in meters)
-        self.extension_distance = 0.20
+        self.extension_distance = 0.30
 
         # # Navigation control subscriber
         self.nav_control_sub = self.create_subscription(
@@ -148,7 +148,7 @@ Launching with parameters:
             # self._initialize_proximity_lut()
             self.get_logger().info(
                 f"\n\r Cached scan parameters and initialized LUTs. \
-                  \n\r Angles (rad): {scan.angle_min:.2f} to {scan.angle_max:.2f}, by {scan.angle_increment:.2f} \
+                  \n\r Angles (deg): {np.rad2deg(scan.angle_min):.2f} to {np.rad2deg(scan.angle_max):.2f}, by {np.rad2deg(scan.angle_increment):.2f} \
                   \n\r Ranges (m): {scan.range_min:.2f} to {scan.range_max:.2f}, with {len(scan.ranges)} points"
             )
 
@@ -231,7 +231,7 @@ Launching with parameters:
 
         # Compute number of points to rewrite (vectorized)
         def compute_extension_pts(disparities):
-            angles = np.arctan(self.extension_distance / ranges[disparities])
+            angles = np.arctan(self.extension_distance / (ranges[disparities]+0.001))
             return np.clip((angles / self._scan_params['angle_increment']).astype(int), 0, self._scan_params['num_points']) # type: ignore
         
         # Disparities are rewritten according to the value at the disparity index:
@@ -322,12 +322,12 @@ Launching with parameters:
         forward_distance_steering = min(
                 np.average(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 10 : self._scan_params['num_points']//2 + 10 # type: ignore
+                        self._scan_params['num_points']//2 - 2 : self._scan_params['num_points']//2 + 2 # type: ignore
                         ]
                     ), 
                 self.lookahead_distance)   # The distance directly in front of the car
 
-        target_distance = min(full_ranges[deep_index], self.lookahead_distance)  # The distance to the target point
+        target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
         target_angle = self._scan_params['angle_min'] + deep_index * self._scan_params['angle_increment'] # type: ignore  # The angle to the target point
         new_target_distance = forward_distance_steering / np.cos(target_angle)
         if new_target_distance < target_distance:
@@ -362,16 +362,16 @@ Launching with parameters:
 
         forward_distance_speed = min(
                 np.max(
-                    full_ranges[
-                        self._scan_params['num_points']//2 - 15 : self._scan_params['num_points']//2 + 15 # type: ignore
+                    ext_ranges[
+                        self._scan_params['num_points']//2 - 10 : self._scan_params['num_points']//2 + 10 # type: ignore
                         ]
                 ),
             8.0
         )
-        speed_max = 4.0
-        speed_min = 0.5
-        accel = 0.75
-        a_center = 3.0
+        speed_max = 6.0
+        speed_min = 2.0
+        accel = 1.8
+        a_center = 3.2
         speed = (
                 (speed_max - speed_min) 
                 / (1 + np.exp(- accel * (forward_distance_speed - a_center))) 
