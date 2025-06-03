@@ -53,7 +53,7 @@ Launching with parameters:
         # Lookup tables for wall proximity checks
         self._proximity_lut = None
         # Lookahead distance (in meters)
-        self.lookahead_distance = 6.0 # steering
+        self.lookahead_distance = 5.0
 
         # # Publisher for AckermannDriveStamped messages on '/drive'
         self.drive_pub = self.create_publisher(
@@ -83,6 +83,7 @@ Launching with parameters:
         )
         # Threshold for extending disparities (in meters)
         self.extension_distance = 0.30
+        # self.extension_distance = 0.40
 
         # # Navigation control subscriber
         self.nav_control_sub = self.create_subscription(
@@ -329,6 +330,7 @@ Launching with parameters:
 
         # target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
         if forward_distance_steering < 2.0:
+        # if forward_distance_steering < 2.5: # for obstacle track
             target_distance = max(min(ext_ranges[deep_index], 1.35) - 0.2, 0.0)
         else: 
             target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)
@@ -367,17 +369,36 @@ Launching with parameters:
         # Parameters
 
         forward_distance_speed = min(
-                np.max(
+                # np.max(   # FOR CIRCUIT
+                np.average( # FOR OBSTACLE
+                # np.min( # FOR OBSTACLE
                     ext_ranges[
-                        self._scan_params['num_points']//2 - 10 : self._scan_params['num_points']//2 + 10 # type: ignore
+                        # self._scan_params['num_points']//2 - 12 : self._scan_params['num_points']//2 + 12 # type: ignore
+                        self._scan_params['num_points']//2 - 15 : self._scan_params['num_points']//2 + 15 # type: ignore
                         ]
                 ),
             8.0
         )
-        speed_max = 6.0
-        speed_min = 2.0
-        accel = 1.8
-        a_center = 3.2
+        # forward_distance_speed = target_distance
+
+        # OVAL TRACK
+        # speed_max = 6.0
+        # speed_min = 1.75
+        # accel = 0.8
+        # a_center = 2.2
+
+        # ROAD CIRCUIT
+        speed_max = 8.0
+        speed_min = 2.5
+        accel = 1.9
+        a_center = 2.8
+
+        # OBSTACLE
+        # speed_max = 5.0
+        # speed_min = 1.5
+        # accel = 1.0
+        # a_center = 3.0
+
         speed = (
                 (speed_max - speed_min) 
                 / (1 + np.exp(- accel * (forward_distance_speed - a_center))) 
