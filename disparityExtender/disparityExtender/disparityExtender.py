@@ -329,8 +329,8 @@ Launching with parameters:
                 self.lookahead_distance)   # The distance directly in front of the car
 
         # target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
-        if forward_distance_steering < 2.0:
-        # if forward_distance_steering < 2.5: # for obstacle track
+        # if : # forward_distance_steering < 2.0:
+        if forward_distance_steering < 2.5: # for obstacle track
             target_distance = max(min(ext_ranges[deep_index], 1.35) - 0.2, 0.0)
         else: 
             target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)
