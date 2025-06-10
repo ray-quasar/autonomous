@@ -323,14 +323,14 @@ Launching with parameters:
         forward_distance_steering = min(
                 np.average(
                     full_ranges[
-                        self._scan_params['num_points']//2 - 2 : self._scan_params['num_points']//2 + 2 # type: ignore
+                        self._scan_params['num_points']//2 - 12 : self._scan_params['num_points']//2 + 12 # type: ignore
                         ]
                     ), 
                 self.lookahead_distance)   # The distance directly in front of the car
 
         # target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)  # The distance to the target point
-        # if : # forward_distance_steering < 2.0:
-        if forward_distance_steering < 2.5: # for obstacle track
+        if False:
+        # if forward_distance_steering < 1.0: # for obstacle track
             target_distance = max(min(ext_ranges[deep_index], 1.35) - 0.2, 0.0)
         else: 
             target_distance = max(min(ext_ranges[deep_index], self.lookahead_distance) - 0.2, 0.0)
@@ -370,11 +370,11 @@ Launching with parameters:
 
         forward_distance_speed = min(
                 # np.max(   # FOR CIRCUIT
-                np.average( # FOR OBSTACLE
-                # np.min( # FOR OBSTACLE
+                # np.average( # FOR OBSTACLE
+                np.min( # FOR OBSTACLE
                     ext_ranges[
-                        # self._scan_params['num_points']//2 - 12 : self._scan_params['num_points']//2 + 12 # type: ignore
-                        self._scan_params['num_points']//2 - 15 : self._scan_params['num_points']//2 + 15 # type: ignore
+                        self._scan_params['num_points']//2 - 12 : self._scan_params['num_points']//2 + 12 # type: ignore
+                        # self._scan_params['num_points']//2 - 15 : self._scan_params['num_points']//2 + 15 # type: ignore
                         ]
                 ),
             8.0
